@@ -1,1 +1,1 @@
-Different hardware control classes.
+Control classes for different hardware.

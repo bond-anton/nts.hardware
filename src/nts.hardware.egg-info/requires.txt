@@ -1,0 +1,13 @@
+gpiozero
+python-statemachine
+
+[dev]
+pydot
+graphviz
+
+[lint]
+pylint
+
+[test]
+flake8
+pytest

@@ -5,9 +5,9 @@ from gpiozero import Device, OutputDevice  # type: ignore
 from gpiozero.pins.mock import MockFactory
 
 try:
-    from src.nts.hardware.relay import GPIORelay
+    from src.nts.hardware.actuator import GPIOActuator
 except ModuleNotFoundError:
-    from nts.hardware.relay import GPIORelay
+    from nts.hardware.actuator import GPIOActuator
 
 
 Device.pin_factory = MockFactory()
@@ -25,15 +25,15 @@ class TestGPIORelay(unittest.TestCase):
         test Relay constructor.
         """
         # pylint: disable=protected-access
-        gpio_relay = GPIORelay(self.pin)
-        self.assertEqual(gpio_relay.label, "GPIO Relay")
+        gpio_relay = GPIOActuator(self.pin)
+        self.assertEqual(gpio_relay.label, "GPIO ACTUATOR")
         self.assertEqual(gpio_relay._is_normally_off(), True)
         self.assertEqual(gpio_relay.normally_off, True)
         self.assertEqual(gpio_relay.normally_on, False)
         self.assertEqual(gpio_relay.value, 0)
         self.assertEqual(gpio_relay.verbose, False)
 
-        gpio_relay = GPIORelay(
+        gpio_relay = GPIOActuator(
             self.pin, label="MY RELAY", normally_off=False, verbose=True
         )
         self.assertEqual(gpio_relay.label, "MY RELAY")
@@ -43,7 +43,7 @@ class TestGPIORelay(unittest.TestCase):
         self.assertEqual(gpio_relay.value, 1)
         self.assertEqual(gpio_relay.verbose, True)
 
-        gpio_relay = GPIORelay(
+        gpio_relay = GPIOActuator(
             self.pin, label="MY RELAY", normally_on=True, verbose=False
         )
         self.assertEqual(gpio_relay.label, "MY RELAY")
@@ -53,7 +53,7 @@ class TestGPIORelay(unittest.TestCase):
         self.assertEqual(gpio_relay.value, 1)
         self.assertEqual(gpio_relay.verbose, False)
 
-        gpio_relay = GPIORelay(
+        gpio_relay = GPIOActuator(
             self.pin, label="MY RELAY", normally_on=False, verbose=True
         )
         self.assertEqual(gpio_relay.label, "MY RELAY")
@@ -65,7 +65,7 @@ class TestGPIORelay(unittest.TestCase):
 
     def test_value(self):
         """Test value property"""
-        gpio_relay = GPIORelay(self.pin)
+        gpio_relay = GPIOActuator(self.pin, normally_off=True)
         self.assertEqual(gpio_relay.value, 0)
         self.assertEqual(self.pin.value, 0)
         self.assertEqual(gpio_relay.current_state, gpio_relay.off)
@@ -90,9 +90,18 @@ class TestGPIORelay(unittest.TestCase):
         self.assertEqual(gpio_relay.current_state, gpio_relay.on)
         self.assertEqual(self.pin.value, 1)
 
+        gpio_relay = GPIOActuator(self.pin, normally_on=True)
+        self.assertEqual(gpio_relay.value, 1)
+        self.assertEqual(self.pin.value, 0)
+        self.assertEqual(gpio_relay.current_state, gpio_relay.on)
+        gpio_relay.value = 0
+        self.assertEqual(gpio_relay.value, 0)
+        self.assertEqual(gpio_relay.current_state, gpio_relay.off)
+        self.assertEqual(self.pin.value, 1)
+
     def test_switching(self):
         """Test switching on and off"""
-        gpio_relay = GPIORelay(self.pin, verbose=True)
+        gpio_relay = GPIOActuator(self.pin, normally_off=True, verbose=True)
         self.assertEqual(gpio_relay.value, 0)
         self.assertEqual(gpio_relay.current_state, gpio_relay.off)
         self.assertEqual(self.pin.value, 0)
@@ -104,3 +113,16 @@ class TestGPIORelay(unittest.TestCase):
         self.assertEqual(gpio_relay.value, 0)
         self.assertEqual(gpio_relay.current_state, gpio_relay.off)
         self.assertEqual(self.pin.value, 0)
+
+        gpio_relay = GPIOActuator(self.pin, normally_on=True, verbose=True)
+        self.assertEqual(gpio_relay.value, 1)
+        self.assertEqual(gpio_relay.current_state, gpio_relay.on)
+        self.assertEqual(self.pin.value, 0)
+        gpio_relay.switch_off()
+        self.assertEqual(gpio_relay.value, 0)
+        self.assertEqual(gpio_relay.current_state, gpio_relay.off)
+        self.assertEqual(self.pin.value, 1)
+
+
+if __name__ == "__main__":
+    unittest.main()

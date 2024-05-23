@@ -27,6 +27,7 @@ dependencies = [
 "Bug Tracker" = "https://github.com/bond-anton/nts.hardware/issues"
 
 [project.optional-dependencies]
+hw_pwm = ["rpi-hardware-pwm"]
 dev = ["pydot", "graphviz"]
 test = ["flake8", "pytest"]
 lint = ["pylint"]

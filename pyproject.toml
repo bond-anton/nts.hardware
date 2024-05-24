@@ -18,8 +18,9 @@ classifiers = [
 ]
 requires-python = ">=3.9"
 dependencies = [
+    "python-statemachine",
     "gpiozero",
-    "python-statemachine"
+    "pyserial"
 ]
 
 [project.urls]

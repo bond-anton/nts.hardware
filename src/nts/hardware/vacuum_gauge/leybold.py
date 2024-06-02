@@ -2,9 +2,6 @@
 Edwards analog output voltage to pressure conversion.
 """
 
-from serial import Serial  # type: ignore
-
-
 ########################################
 # Analog output to pressure conversion #
 ########################################

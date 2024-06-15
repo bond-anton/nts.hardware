@@ -1,7 +1,9 @@
 """ Testing HWPWMProportionalActuator class """
 
-# pylint: disable=ungrouped-imports
 import unittest
+
+# pylint: disable=ungrouped-imports
+# Conditional ungrouped import is reasonable in this case.
 
 try:
     from rpi_hardware_pwm import HardwarePWM  # type: ignore

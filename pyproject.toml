@@ -20,7 +20,8 @@ requires-python = ">=3.9"
 dependencies = [
     "python-statemachine",
     "gpiozero",
-    "pyserial"
+    "pyserial",
+    "pymodbus[serial]"
 ]
 
 [project.urls]

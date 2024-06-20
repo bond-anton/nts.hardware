@@ -23,6 +23,7 @@ def voltage_to_pressure(voltage: float, model: str = "MTP4D") -> float:
 
 ########################
 # RS-485 communication #
+# Erstevak uses nonstandard communication protocol. #
 ########################
 
 

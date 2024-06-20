@@ -1,16 +1,6 @@
 """RS485 communication helper functions"""
 
-import time
 from serial import Serial  # type: ignore
-
-
-def purge_serial_input_buffer(con: Serial, delay: float = 0.05) -> None:
-    """Purge the serial communication buffer"""
-    while True:
-        time.sleep(delay)
-        data: bytes = con.readline()
-        if not data:
-            break
 
 
 def check_sum(payload: bytes) -> int:

@@ -1,5 +1,5 @@
 """
-Edwards analog output voltage to pressure conversion.
+Leybold analog output voltage to pressure conversion.
 """
 
 ########################################

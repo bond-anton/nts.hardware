@@ -2,12 +2,10 @@
 
 from typing import Union
 import struct
-import time
-from serial import Serial  # type: ignore
+import asyncio
 
-from .materials import materials
-from ..rs485 import SerialConnectionConfig
-from ..rs485.serial import lrc, check_lrc
+from ..materials import materials
+from ...rs485 import SerialConnectionConfig, ModbusSerialConnectionConfig
 
 
 class QTM:
@@ -17,40 +15,18 @@ class QTM:
 
     def __init__(
         self,
-        con_params: SerialConnectionConfig,
+        con_params: Union[SerialConnectionConfig, ModbusSerialConnectionConfig],
         address: int = 1,
         retries: int = 5,
         verbose=False,
     ):
-        self.con_params: SerialConnectionConfig = con_params
+        self.con_params: Union[SerialConnectionConfig, ModbusSerialConnectionConfig] = (
+            con_params
+        )
         self.address: int = address
-        self.retries: int = retries
+        self.retries = retries
         self.response_delay: float = 5e-3
         self.verbose: bool = verbose
-
-    @staticmethod
-    def _prepare_message(
-        address: int, cmd_code: int, register: int, value: int
-    ) -> bytes:
-        """Build a message for a QTM (10 bytes)"""
-        payload: bytes = struct.pack(
-            ">BBh", address, cmd_code, register
-        )  # 4 bytes header
-        payload += struct.pack(">h", value)  # 2 bytes data
-        payload += struct.pack(">B", lrc(payload))  # 1 byte LRC
-        return b":" + payload.hex().upper().encode("utf-8") + b"\r\n"  # 3 bytes more
-
-    @staticmethod
-    def _get_payload(response: Union[bytes, None], verbose: bool = True) -> bytes:
-        """Get the payload from the QTM response"""
-        if response:
-            # skip start and stop bytes and parse as a hex string
-            payload = bytes.fromhex(response[1:-2].decode("utf-8"))
-            if check_lrc(payload):
-                return payload
-            if verbose:
-                print(f"LRC mismatch {payload[-1]} != {check_lrc(payload)}")
-        return b""
 
     @staticmethod
     def _parse_response(response: bytes, verbose: bool = True) -> dict:
@@ -106,116 +82,108 @@ class QTM:
                 )
         return parsed
 
-    def read_registers(self, start_register: int = 0, count: int = 1) -> bytes:
+    async def read_registers(self, start_register: int = 0, count: int = 1) -> bytes:
         """Read QTM registers data"""
-        con: Serial
-        cmd_code: int = 3
-        msg: bytes = self._prepare_message(
-            self.address, cmd_code, start_register, count
-        )
+        # replace this method with actual communication action
         if self.verbose:
-            print(f"MSG: {msg!r}")
-        con = Serial(**self.con_params.model_dump())
-        con.write(msg)
-        time.sleep(self.response_delay)
-        response: bytes = con.readline()
-        con.close()
-        return self._get_payload(response, verbose=self.verbose)
+            print(f"Read from REGs: {start_register} - {start_register + count}")
+        return b""
 
-    def read_parse_registers(self, start_register: int = 0, count: int = 1) -> dict:
+    async def read_parse_registers(
+        self, start_register: int = 0, count: int = 1
+    ) -> dict:
         """Read registers and return parsed response"""
         for iteration in range(self.retries):
             if self.verbose:
                 print(f"Iteration {iteration + 1} of {self.retries}")
-            response = self.read_registers(start_register=start_register, count=count)
+            response = await self.read_registers(
+                start_register=start_register, count=count
+            )
             parsed = self._parse_response(response, verbose=self.verbose)
             if parsed["addr"] == self.address:
                 return parsed
         return self._parse_response(b"", verbose=self.verbose)
 
-    def write_register(self, register: int, value: int) -> bytes:
+    async def write_register(self, register: int, value: int) -> bytes:
         """Write the data value to the register"""
-        con: Serial
-        cmd_code: int = 6
-        msg: bytes = self._prepare_message(self.address, cmd_code, register, value)
+        # replace this method with actual communication action
         if self.verbose:
-            print(f"MSG: {msg!r}")
-        con = Serial(**self.con_params.model_dump())
-        con.write(msg)
-        time.sleep(self.response_delay)
-        response: bytes = con.readline()
-        con.close()
-        return self._get_payload(response, verbose=self.verbose)
+            print(f"Write to REG: {register}, VAL: {value}")
+        return b""
 
-    def write_parse_register(self, register: int, data: int = 0) -> dict:
+    async def write_parse_register(self, register: int, data: int = 0) -> dict:
         """Write the data value to the register and return parsed response"""
         for iteration in range(self.retries):
             if self.verbose:
                 print(f"Iteration {iteration + 1} of {self.retries}")
-            response = self.write_register(register=register, value=data)
+            response = await self.write_register(register=register, value=data)
             parsed = self._parse_response(response, verbose=self.verbose)
             if parsed["addr"] == self.address:
                 return parsed
         return self._parse_response(b"", verbose=self.verbose)
 
-    def read_single_register_float(self, register: int, factor: int = 100) -> float:
+    async def read_single_register_float(
+        self, register: int, factor: int = 100
+    ) -> float:
         """Parse a float number from the register data value divided by provided factor"""
-        response: dict = self.read_parse_registers(register, 1)
+        response: dict = await self.read_parse_registers(register, 1)
         if response["data"]:
             return float(response["data"][0] / factor)
         return 0.0
 
-    def write_single_register_float(
+    async def write_single_register_float(
         self, register: int, value: float, factor: int = 100
     ) -> float:
         """Write a float number to the register multiplied by the provided factor"""
-        response = self.write_parse_register(register, int(round(value * factor)))
+        response = await self.write_parse_register(register, int(round(value * factor)))
         if response["cmd"] == 6 and response["data"]:
             return float(response["data"][0] / factor)
-        return self.read_single_register_float(register, factor)
+        return await self.read_single_register_float(register, factor)
 
-    def read_two_registers_data(self, start_register: int, factor: int = 100) -> float:
+    async def read_two_registers_data(
+        self, start_register: int, factor: int = 100
+    ) -> float:
         """Parse a float number from the data split between two registers"""
-        response: dict = self.read_parse_registers(start_register, 2)
+        response: dict = await self.read_parse_registers(start_register, 2)
         if response["data"]:
             return float(((response["data"][0] << 16) + response["data"][1]) / factor)
         return 0.0
 
-    def get_version(self) -> float:
+    async def get_version(self) -> float:
         """get QTM firmware version"""
-        return self.read_single_register_float(0)
+        return await self.read_single_register_float(0)
 
-    def get_thickness(self) -> float:
+    async def get_thickness(self) -> float:
         """Parse thickness (Angstrom) value from register data"""
-        return self.read_two_registers_data(1)
+        return await self.read_two_registers_data(1)
 
-    def get_rate(self) -> float:
+    async def get_rate(self) -> float:
         """Parse rate (Angstrom/s) value from register data"""
-        return self.read_two_registers_data(3)
+        return await self.read_two_registers_data(3)
 
-    def get_frequency(self) -> float:
+    async def get_frequency(self) -> float:
         """Parse frequency (Hz) value from register data"""
-        return self.read_two_registers_data(5)
+        return await self.read_two_registers_data(5)
 
     # PWM function
-    def get_pwm(self) -> float:
+    async def get_pwm(self) -> float:
         """Parse PWM (0.00 - 99.99%) value from register data"""
-        return self.read_single_register_float(7)
+        return await self.read_single_register_float(7)
 
-    def set_pwm(self, pwm: float = 0.0) -> float:
+    async def set_pwm(self, pwm: float = 0.0) -> float:
         """Set PWM value to register"""
         pwm = max(0.0, min(pwm, 99.99))
-        return self.write_single_register_float(7, pwm)
+        return await self.write_single_register_float(7, pwm)
 
     # CON parameters
-    def get_con(self) -> tuple[int, int, int]:
+    async def get_con(self) -> tuple[int, int, int]:
         """
         Parse CON parameters from register data.
         a: 0-11 gate time = a * 100ms
         b: Analog output (b=0 stop, b=1 auto, b=2 manual)
         c: rate calculation algorythm (c=0 immediate, c=1 weighted, c=2 10-average)
         """
-        response: dict = self.read_parse_registers(8, 1)
+        response: dict = await self.read_parse_registers(8, 1)
         if response["data"]:
             coded_str = f"{response['data'][0]:04x}"
             a = int(coded_str[0], 16)
@@ -226,7 +194,7 @@ class QTM:
             return a, b, c
         return 0, 0, 0
 
-    def set_con(self, a: int = 1, b: int = 1, c: int = 1) -> dict:
+    async def set_con(self, a: int = 1, b: int = 1, c: int = 1) -> dict:
         """
         Set CON values to register.
         a: 0-11 gate time = a * 100ms
@@ -237,16 +205,16 @@ class QTM:
         b = int(round(max(0, min(b, 2))))
         c = int(round(max(0, min(c, 2))))
         value = int(f"0x{a:x}{b:x}{c:x}0", 16)
-        return self.write_parse_register(8, value)
+        return await self.write_parse_register(8, value)
 
     # RUN parameters
-    def get_run(self) -> tuple[int, int]:
+    async def get_run(self) -> tuple[int, int]:
         """
         Parse measurement run status.
         (x, y) X: running status, Y: film thickness measurement reset.
         x=0 stopped, x=1 started; y=0 no thickness reset, y=1 thickness reset.
         """
-        response: dict = self.read_parse_registers(9, 1)
+        response: dict = await self.read_parse_registers(9, 1)
         if response["data"]:
             coded_str: str = f"{response['data'][0]:04x}"
             y = int(coded_str[2], 16)
@@ -256,7 +224,7 @@ class QTM:
             return x, y
         return 0, 0
 
-    def set_run(self, x: int = 0, y: int = 0) -> dict:
+    async def set_run(self, x: int = 0, y: int = 0) -> dict:
         """
         Parse running status.
         (x, y) X: running status, Y: film thickness measurement reset.
@@ -265,65 +233,65 @@ class QTM:
         x = max(0, min(x, 1))
         y = max(0, min(y, 1))
         data = int(f"0x00{int(y):x}{int(x):x}", 16)
-        return self.write_parse_register(9, data)
+        return await self.write_parse_register(9, data)
 
-    def start_measurement(self) -> dict:
+    async def start_measurement(self) -> dict:
         """quick method to start measurement"""
-        return self.set_run(1, 1)
+        return await self.set_run(1, 1)
 
-    def stop_measurement(self) -> dict:
+    async def stop_measurement(self) -> dict:
         """quick method to stop measurement"""
-        return self.set_run(0, 0)
+        return await self.set_run(0, 0)
 
     # Density parameter
-    def get_density(self) -> float:
+    async def get_density(self) -> float:
         """Parse material density (mg/cc 0.4-99.99) value from register data"""
-        return self.read_single_register_float(10)
+        return await self.read_single_register_float(10)
 
-    def set_density(self, density: float) -> float:
+    async def set_density(self, density: float) -> float:
         """Set material density (mg/cc 0.4-99.99) value to register"""
         density = max(0.4, min(density, 99.99))
-        return self.write_single_register_float(10, density)
+        return await self.write_single_register_float(10, density)
 
     # Sound impedance parameter
-    def get_sound(self) -> float:
+    async def get_sound(self) -> float:
         """Parse sound impedance (Z-ratio) (0.1-9.999) value from register data"""
-        return self.read_single_register_float(11, factor=1000)
+        return await self.read_single_register_float(11, factor=1000)
 
-    def set_sound(self, sound: float) -> float:
+    async def set_sound(self, sound: float) -> float:
         """Set sound impedance (Z-ratio) (0.1-9.999) value to register"""
         sound = max(0.1, min(sound, 9.999))
-        return self.write_single_register_float(11, sound, factor=1000)
+        return await self.write_single_register_float(11, sound, factor=1000)
 
     # Scale parameter
-    def get_scale(self) -> float:
+    async def get_scale(self) -> float:
         """Parse scale factor (1-65.535) value from register data"""
-        return self.read_single_register_float(12, factor=1000)
+        return await self.read_single_register_float(12, factor=1000)
 
-    def set_scale(self, scale: float) -> float:
+    async def set_scale(self, scale: float) -> float:
         """Set scale factor (1-65.535) value to register"""
         scale = max(1.0, min(scale, 65.535))
-        return self.write_single_register_float(12, scale, factor=1000)
+        return await self.write_single_register_float(12, scale, factor=1000)
 
     # Measurement range parameter
-    def get_range(self) -> int:
+    async def get_range(self) -> int:
         """Parse range parameter (0-9999 A/s) value from register data"""
-        return int(self.read_single_register_float(13, factor=1))
+        return int(await self.read_single_register_float(13, factor=1))
 
-    def set_range(self, rate_range: int) -> int:
+    async def set_range(self, rate_range: int) -> int:
         """Set range parameter (0-9999) value to register"""
         rate_range = max(0, min(rate_range, 9999))
-        return int(self.write_single_register_float(13, rate_range, factor=1))
+        return int(await self.write_single_register_float(13, rate_range, factor=1))
 
     # RS485 address parameter
-    def get_address(self) -> int:
+    async def get_address(self) -> int:
         """Parse RS-485 address (0-254) value from register data"""
-        return int(self.read_single_register_float(14, factor=1))
+        return int(await self.read_single_register_float(14, factor=1))
 
-    def set_address(self, address: int) -> int:
+    async def set_address(self, address: int) -> int:
         """Set RS-485 address (1-254) value to register"""
         address = max(1, min(address, 254))
-        new_address = int(self.write_single_register_float(14, address, factor=1))
+        new_address = int(await self.write_single_register_float(14, address, factor=1))
         self.address = new_address
         return new_address
 
@@ -364,20 +332,20 @@ class QTM:
             code = 5
         return code
 
-    def get_baudrate(self) -> int:
+    async def get_baudrate(self) -> int:
         """Parse RS-485 baudrate value from register data"""
-        response: dict = self.read_parse_registers(15, 1)
+        response: dict = await self.read_parse_registers(15, 1)
         code: int = 0
         if response["data"]:
             coded_str: str = f"{response['data'][0]:04x}"
             code = int(coded_str[0], 16)
         return self._code_to_baudrate(code)
 
-    def set_baudrate(self, baudrate: int) -> int:
+    async def set_baudrate(self, baudrate: int) -> int:
         """Set RS-485 baudrate value to register"""
         code: int = self._baudrate_to_code(baudrate)
         coded_byte: int = int(f"0x{code}000")
-        response: dict = self.write_parse_register(15, coded_byte)
+        response: dict = await self.write_parse_register(15, coded_byte)
         code = 0
         if response["data"]:
             coded_str: str = f"{response['data'][0]:04x}"
@@ -387,9 +355,9 @@ class QTM:
         return new_baudrate
 
     # Get QTM state in single request
-    def get_state(self) -> dict:
+    async def get_state(self) -> dict:
         """QTM state in a single request"""
-        response: dict = self.read_parse_registers(0, 16)
+        response: dict = await self.read_parse_registers(0, 16)
         state: dict = {
             "version": 0.0,
             "thickness": 0.0,
@@ -432,11 +400,11 @@ class QTM:
             state["baudrate"] = self._code_to_baudrate(int(bitrate_str[0], 16))
         return state
 
-    def set_material(self, material: str = "Au") -> None:
+    async def set_material(self, material: str = "Au") -> None:
         """Set deposition material density and Z-ratio"""
         den: float = materials[material]["density"]
         snd: float = materials[material]["sound"]
-        self.set_density(den)
-        time.sleep(self.response_delay)
-        self.set_sound(snd)
-        time.sleep(self.response_delay)
+        await self.set_density(den)
+        await asyncio.sleep(self.response_delay)
+        await self.set_sound(snd)
+        await asyncio.sleep(self.response_delay)

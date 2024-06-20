@@ -6,6 +6,7 @@ import time
 from serial import Serial  # type: ignore
 
 from .materials import materials
+from ..rs485 import SerialConnectionConfig
 from ..rs485.serial import lrc, check_lrc
 
 
@@ -15,13 +16,17 @@ class QTM:
     # pylint: disable=too-many-public-methods
 
     def __init__(
-        self, con_params: dict, address: int = 1, retries: int = 5, verbose=False
+        self,
+        con_params: SerialConnectionConfig,
+        address: int = 1,
+        retries: int = 5,
+        verbose=False,
     ):
-        self.con_params = con_params
-        self.address = address
-        self.retries = retries
-        self.response_delay = 5e-3
-        self.verbose = verbose
+        self.con_params: SerialConnectionConfig = con_params
+        self.address: int = address
+        self.retries: int = retries
+        self.response_delay: float = 5e-3
+        self.verbose: bool = verbose
 
     @staticmethod
     def _prepare_message(
@@ -80,7 +85,9 @@ class QTM:
         elif parsed["cmd"] == 6:
             parsed["data_length"] = 2
             parsed["count"] = 1
-            parsed["register"] = struct.unpack(">" + "h" * parsed["count"], response[2:4])[0]
+            parsed["register"] = struct.unpack(
+                ">" + "h" * parsed["count"], response[2:4]
+            )[0]
             parsed["data"] = struct.unpack(">" + "h" * parsed["count"], response[4:6])
             if verbose:
                 print(
@@ -94,7 +101,8 @@ class QTM:
             parsed["data"] = struct.unpack(">h", response[2:4])
             if verbose:
                 print(
-                    f"ERR: {parsed['cmd']}, CMD: {parsed['cmd'] - 0x80}, DATA: {parsed['data']}, LRC: {parsed['lrc']}"
+                    f"ERR: {parsed['cmd']:x}, CMD: {parsed['cmd'] - 0x80}"
+                    f"DATA: {parsed['data']}, LRC: {parsed['lrc']}"
                 )
         return parsed
 
@@ -107,7 +115,7 @@ class QTM:
         )
         if self.verbose:
             print(f"MSG: {msg!r}")
-        con = Serial(**self.con_params)
+        con = Serial(**self.con_params.model_dump())
         con.write(msg)
         time.sleep(self.response_delay)
         response: bytes = con.readline()
@@ -132,7 +140,7 @@ class QTM:
         msg: bytes = self._prepare_message(self.address, cmd_code, register, value)
         if self.verbose:
             print(f"MSG: {msg!r}")
-        con = Serial(**self.con_params)
+        con = Serial(**self.con_params.model_dump())
         con.write(msg)
         time.sleep(self.response_delay)
         response: bytes = con.readline()
@@ -157,7 +165,9 @@ class QTM:
             return float(response["data"][0] / factor)
         return 0.0
 
-    def write_single_register_float(self, register: int, value: float, factor: int = 100) -> float:
+    def write_single_register_float(
+        self, register: int, value: float, factor: int = 100
+    ) -> float:
         """Write a float number to the register multiplied by the provided factor"""
         response = self.write_parse_register(register, int(round(value * factor)))
         if response["cmd"] == 6 and response["data"]:
@@ -368,11 +378,13 @@ class QTM:
         code: int = self._baudrate_to_code(baudrate)
         coded_byte: int = int(f"0x{code}000")
         response: dict = self.write_parse_register(15, coded_byte)
-        code: int = 0
+        code = 0
         if response["data"]:
             coded_str: str = f"{response['data'][0]:04x}"
             code = int(coded_str[0], 16)
-        return self._code_to_baudrate(code)
+        new_baudrate = self._code_to_baudrate(code)
+        self.con_params.baudrate = new_baudrate
+        return new_baudrate
 
     # Get QTM state in single request
     def get_state(self) -> dict:

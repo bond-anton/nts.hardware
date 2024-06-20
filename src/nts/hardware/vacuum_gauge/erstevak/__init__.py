@@ -3,6 +3,7 @@ Erstevak vacuum gauges. Tested with MTM9D and MTP4D models.
 """
 
 from enum import Enum
+from .rs485 import ErstevakRS485
 
 
 class CalibrationFactorPirani(Enum):

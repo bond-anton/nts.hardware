@@ -155,32 +155,6 @@ class ErstevakRS485:
         self.response_delay: float = 5e-3
         self.verbose: bool = verbose
 
-    class CalibrationFactorPirani(Enum):
-        """Calibration coefficients for Pirani gauge (coefficient 1)"""
-
-        AIR = 1.0
-        AR = 1.6
-        CO = 1.0
-        CO2 = 0.89
-        H2 = 0.57
-        HE = 1.0
-        N2 = 1.0
-        NE = 1.4
-        KR = 2.4
-
-    class CalibrationFactorPenning(Enum):
-        """Calibration coefficients for Penning gauge (coefficient 2)"""
-
-        AIR = 1.0
-        AR = 0.8
-        CO2 = 0.74
-        H2 = 2.4
-        HE = 5.9
-        N2 = 1.0
-        NE = 3.5
-        KR = 0.6
-        XE = 0.41
-
     async def send_command(self, command: str, data: str = "") -> dict:
         """Send command request to the gauge and receive a response"""
         connection: Serial

@@ -41,7 +41,7 @@ class QTMModbus(QTM):
                 # skip start and stop bytes and parse as a hex string
                 payload = (
                     struct.pack(">BB", response.slave_id, response.function_code)
-                    + response.encode()
+                    + response.encode() + b"\x00"
                 )
                 return payload
             if verbose:

@@ -169,7 +169,7 @@ class ErstevakRS485:
             connection = Serial(**self.con_params.model_dump())
             connection.write(msg)
             await asyncio.sleep(self.response_delay)
-            response = connection.readline()[:-1]
+            response = connection.read_until(b"\r")[:-1]
             connection.close()
             parsed_data = _parse_response(response, self.address, verbose=self.verbose)
             if parsed_data["cmd"] == command:

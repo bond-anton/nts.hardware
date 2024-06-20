@@ -253,15 +253,15 @@ class QTM:
         density = max(0.4, min(density, 99.99))
         return await self.write_single_register_float(10, density)
 
-    # Sound impedance parameter
-    async def get_sound(self) -> float:
-        """Parse sound impedance (Z-ratio) (0.1-9.999) value from register data"""
+    # Sound impedance ratio (Z-ratio)
+    async def get_z_ratio(self) -> float:
+        """Parse sound impedance ratio (Z-ratio) (0.1-9.999) value from register data"""
         return await self.read_single_register_float(11, factor=1000)
 
-    async def set_sound(self, sound: float) -> float:
-        """Set sound impedance (Z-ratio) (0.1-9.999) value to register"""
-        sound = max(0.1, min(sound, 9.999))
-        return await self.write_single_register_float(11, sound, factor=1000)
+    async def set_z_ratio(self, z_ratio: float) -> float:
+        """Set sound impedance ratio (Z-ratio) (0.1-9.999) value to register"""
+        z_ratio = max(0.1, min(z_ratio, 9.999))
+        return await self.write_single_register_float(11, z_ratio, factor=1000)
 
     # Scale parameter
     async def get_scale(self) -> float:
@@ -367,7 +367,7 @@ class QTM:
             "con": (0, 0, 0),
             "run": (0, 0),
             "den": 0.0,
-            "sound_resistance": 0.0,
+            "z_ratio": 0.0,
             "scale": 0.0,
             "range": 0,
             "addr": 0,
@@ -392,7 +392,7 @@ class QTM:
             run_str = f"{response['data'][9]:04x}"
             state["run"] = (int(run_str[3], 16), int(run_str[2], 16))
             state["den"] = response["data"][10] / 100
-            state["sound_resistance"] = response["data"][11] / 1000
+            state["z_ratio"] = response["data"][11] / 1000
             state["scale"] = response["data"][12] / 1000
             state["range"] = response["data"][13]
             state["addr"] = response["data"][14]
@@ -403,8 +403,8 @@ class QTM:
     async def set_material(self, material: str = "Au") -> None:
         """Set deposition material density and Z-ratio"""
         den: float = materials[material]["density"]
-        snd: float = materials[material]["sound"]
+        z_ratio: float = materials[material]["z_ratio"]
         await self.set_density(den)
         await asyncio.sleep(self.response_delay)
-        await self.set_sound(snd)
+        await self.set_z_ratio(z_ratio)
         await asyncio.sleep(self.response_delay)

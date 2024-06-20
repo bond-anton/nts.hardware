@@ -313,7 +313,9 @@ class QTM:
     def set_address(self, address: int) -> int:
         """Set RS-485 address (1-254) value to register"""
         address = max(1, min(address, 254))
-        return int(self.write_single_register_float(14, address, factor=1))
+        new_address = int(self.write_single_register_float(14, address, factor=1))
+        self.address = new_address
+        return new_address
 
     # RS485 bitrate parameter
     @staticmethod

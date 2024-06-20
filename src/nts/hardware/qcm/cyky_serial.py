@@ -80,12 +80,21 @@ class QTM:
         elif parsed["cmd"] == 6:
             parsed["data_length"] = 2
             parsed["count"] = 1
-            parsed["register"] = response[2]
-            parsed["data"] = (response[3],)
+            parsed["register"] = struct.unpack(">" + "h" * parsed["count"], response[2:4])[0]
+            parsed["data"] = struct.unpack(">" + "h" * parsed["count"], response[4:6])
             if verbose:
                 print(
                     f"CMD: {parsed['cmd']}, ADDR: {parsed['addr']}, REG: {parsed['register']}, "
                     f"DATA: {parsed['data']}, LRC: {parsed['lrc']}"
+                )
+        elif parsed["cmd"] >= 0x80:
+            # Error response
+            parsed["data_length"] = 2
+            parsed["count"] = 1
+            parsed["data"] = struct.unpack(">h", response[2:4])
+            if verbose:
+                print(
+                    f"ERR: {parsed['cmd']}, CMD: {parsed['cmd'] - 0x80}, DATA: {parsed['data']}, LRC: {parsed['lrc']}"
                 )
         return parsed
 
@@ -141,14 +150,21 @@ class QTM:
                 return parsed
         return self._parse_response(b"", verbose=self.verbose)
 
-    def get_single_register_float(self, register: int, factor: int = 100) -> float:
+    def read_single_register_float(self, register: int, factor: int = 100) -> float:
         """Parse a float number from the register data value divided by provided factor"""
         response: dict = self.read_parse_registers(register, 1)
         if response["data"]:
             return float(response["data"][0] / factor)
         return 0.0
 
-    def get_two_registers_data(self, start_register: int, factor: int = 100) -> float:
+    def write_single_register_float(self, register: int, value: float, factor: int = 100) -> float:
+        """Write a float number to the register multiplied by the provided factor"""
+        response = self.write_parse_register(register, int(round(value * factor)))
+        if response["cmd"] == 6 and response["data"]:
+            return float(response["data"][0] / factor)
+        return self.read_single_register_float(register, factor)
+
+    def read_two_registers_data(self, start_register: int, factor: int = 100) -> float:
         """Parse a float number from the data split between two registers"""
         response: dict = self.read_parse_registers(start_register, 2)
         if response["data"]:
@@ -157,29 +173,29 @@ class QTM:
 
     def get_version(self) -> float:
         """get QTM firmware version"""
-        return self.get_single_register_float(0)
+        return self.read_single_register_float(0)
 
     def get_thickness(self) -> float:
         """Parse thickness (Angstrom) value from register data"""
-        return self.get_two_registers_data(1)
+        return self.read_two_registers_data(1)
 
     def get_rate(self) -> float:
         """Parse rate (Angstrom/s) value from register data"""
-        return self.get_two_registers_data(3)
+        return self.read_two_registers_data(3)
 
     def get_frequency(self) -> float:
         """Parse frequency (Hz) value from register data"""
-        return self.get_two_registers_data(5)
+        return self.read_two_registers_data(5)
 
     # PWM function
     def get_pwm(self) -> float:
         """Parse PWM (0.00 - 99.99%) value from register data"""
-        return self.get_single_register_float(7)
+        return self.read_single_register_float(7)
 
-    def set_pwm(self, pwm: float = 0.0) -> dict:
+    def set_pwm(self, pwm: float = 0.0) -> float:
         """Set PWM value to register"""
         pwm = max(0.0, min(pwm, 99.99))
-        return self.write_parse_register(7, int(round(pwm * 100)))
+        return self.write_single_register_float(7, pwm)
 
     # CON parameters
     def get_con(self) -> tuple[int, int, int]:
@@ -252,52 +268,52 @@ class QTM:
     # Density parameter
     def get_density(self) -> float:
         """Parse material density (mg/cc 0.4-99.99) value from register data"""
-        return self.get_single_register_float(10)
+        return self.read_single_register_float(10)
 
-    def set_density(self, density: float) -> dict:
+    def set_density(self, density: float) -> float:
         """Set material density (mg/cc 0.4-99.99) value to register"""
         density = max(0.4, min(density, 99.99))
-        return self.write_parse_register(10, int(round(density * 100)))
+        return self.write_single_register_float(10, density)
 
     # Sound impedance parameter
     def get_sound(self) -> float:
         """Parse sound impedance (Z-ratio) (0.1-9.999) value from register data"""
-        return self.get_single_register_float(11, factor=1000)
+        return self.read_single_register_float(11, factor=1000)
 
-    def set_sound(self, sound: float) -> dict:
+    def set_sound(self, sound: float) -> float:
         """Set sound impedance (Z-ratio) (0.1-9.999) value to register"""
         sound = max(0.1, min(sound, 9.999))
-        return self.write_parse_register(11, int(round(sound * 1000)))
+        return self.write_single_register_float(11, sound, factor=1000)
 
     # Scale parameter
     def get_scale(self) -> float:
         """Parse scale factor (1-65.535) value from register data"""
-        return self.get_single_register_float(12, factor=1000)
+        return self.read_single_register_float(12, factor=1000)
 
-    def set_scale(self, scale: float) -> dict:
+    def set_scale(self, scale: float) -> float:
         """Set scale factor (1-65.535) value to register"""
         scale = max(1.0, min(scale, 65.535))
-        return self.write_parse_register(12, int(round(scale * 1000)))
+        return self.write_single_register_float(12, scale, factor=1000)
 
     # Measurement range parameter
     def get_range(self) -> int:
         """Parse range parameter (0-9999 A/s) value from register data"""
-        return int(self.get_single_register_float(13, factor=1))
+        return int(self.read_single_register_float(13, factor=1))
 
-    def set_range(self, rate_range: int) -> dict:
+    def set_range(self, rate_range: int) -> int:
         """Set range parameter (0-9999) value to register"""
         rate_range = max(0, min(rate_range, 9999))
-        return self.write_parse_register(13, int(round(rate_range)))
+        return int(self.write_single_register_float(13, rate_range, factor=1))
 
     # RS485 address parameter
     def get_address(self) -> int:
         """Parse RS-485 address (0-254) value from register data"""
-        return int(self.get_single_register_float(14, factor=1))
+        return int(self.read_single_register_float(14, factor=1))
 
-    def set_address(self, address: int) -> dict:
+    def set_address(self, address: int) -> int:
         """Set RS-485 address (1-254) value to register"""
         address = max(1, min(address, 254))
-        return self.write_parse_register(14, int(address))
+        return int(self.write_single_register_float(14, address, factor=1))
 
     # RS485 bitrate parameter
     @staticmethod
@@ -338,16 +354,23 @@ class QTM:
 
     def get_baudrate(self) -> int:
         """Parse RS-485 baudrate value from register data"""
-        response: dict = self.read_parse_registers(9, 1)
+        response: dict = self.read_parse_registers(15, 1)
         code: int = 0
         if response["data"]:
             coded_str: str = f"{response['data'][0]:04x}"
             code = int(coded_str[0], 16)
         return self._code_to_baudrate(code)
 
-    def set_baudrate(self, baudrate: int) -> dict:
+    def set_baudrate(self, baudrate: int) -> int:
         """Set RS-485 baudrate value to register"""
-        return self.write_parse_register(15, self._baudrate_to_code(baudrate))
+        code: int = self._baudrate_to_code(baudrate)
+        coded_byte: int = int(f"0x{code}000")
+        response: dict = self.write_parse_register(15, coded_byte)
+        code: int = 0
+        if response["data"]:
+            coded_str: str = f"{response['data'][0]:04x}"
+            code = int(coded_str[0], 16)
+        return self._code_to_baudrate(code)
 
     # Get QTM state in single request
     def get_state(self) -> dict:

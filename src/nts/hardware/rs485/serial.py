@@ -1,7 +1,5 @@
 """RS485 communication helper functions"""
 
-from serial import Serial  # type: ignore
-
 
 def check_sum(payload: bytes) -> int:
     """Calculate payload data checksum"""

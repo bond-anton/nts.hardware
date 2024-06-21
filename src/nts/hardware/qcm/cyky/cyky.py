@@ -24,7 +24,7 @@ class QTM:
             con_params
         )
         self.address: int = address
-        self.retries = retries
+        self.retries: int = retries
         self.response_delay: float = 5e-3
         self.verbose: bool = verbose
 

@@ -40,7 +40,9 @@ class QTMSerial(QTM):
         return b":" + payload.hex().upper().encode("utf-8") + b"\r\n"  # 3 bytes more
 
     @staticmethod
-    def _get_payload(response: Union[bytes, None], verbose: bool = True) -> bytes:
+    def _get_serial_payload(
+        response: Union[bytes, None], verbose: bool = True
+    ) -> bytes:
         """Get the payload from the QTM response"""
         if response:
             # skip start and stop bytes and parse as a hex string
@@ -65,7 +67,7 @@ class QTMSerial(QTM):
         await asyncio.sleep(self.response_delay)
         response: bytes = con.readline()
         con.close()
-        return self._get_payload(response, verbose=self.verbose)
+        return self._get_serial_payload(response, verbose=self.verbose)
 
     async def write_register(self, register: int, value: int) -> bytes:
         """Write the data value to the register"""
@@ -79,4 +81,4 @@ class QTMSerial(QTM):
         await asyncio.sleep(self.response_delay)
         response: bytes = con.readline()
         con.close()
-        return self._get_payload(response, verbose=self.verbose)
+        return self._get_serial_payload(response, verbose=self.verbose)

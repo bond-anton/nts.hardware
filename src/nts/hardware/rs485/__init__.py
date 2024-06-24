@@ -4,6 +4,9 @@ from typing import Union
 import struct
 from pydantic import BaseModel
 from pymodbus.framer import ModbusAsciiFramer, ModbusRtuFramer
+from pymodbus.pdu import ModbusResponse
+from pymodbus.exceptions import ModbusException
+from pymodbus.client import AsyncModbusSerialClient
 
 
 class SerialConnectionConfig(BaseModel):
@@ -32,14 +35,61 @@ class ModbusSerialConnectionConfig(BaseModel):
     stopbits: int = 1
 
 
-def modbus_config(con_params: ModbusSerialConnectionConfig) -> dict:
+def modbus_config(
+    con_params: Union[SerialConnectionConfig, ModbusSerialConnectionConfig]
+) -> dict:
     """Build params for pymodbus connection from configuration"""
-    rs485_config: dict = con_params.model_dump()
+    modbus_cfg: ModbusSerialConnectionConfig = ModbusSerialConnectionConfig(
+        **con_params.model_dump()
+    )
+    rs485_config: dict = modbus_cfg.model_dump()
     if rs485_config["framer"] == "RTU":
         rs485_config["framer"] = ModbusRtuFramer
     else:
         rs485_config["framer"] = ModbusAsciiFramer
     return rs485_config
+
+
+async def modbus_read_registers(
+    con_params: Union[SerialConnectionConfig, ModbusSerialConnectionConfig],
+    start_register: int = 0,
+    count: int = 1,
+    slave: int = 1,
+    verbose: bool = False,
+) -> Union[ModbusResponse, None]:
+    """Read registers data"""
+    response: Union[ModbusResponse, None] = None
+    client = AsyncModbusSerialClient(**modbus_config(con_params))
+    await client.connect()
+    try:
+        response = await client.read_holding_registers(
+            start_register, count, slave=slave
+        )
+    except ModbusException as e:
+        if verbose:
+            print("Modbus Exception on read registers", e)
+    client.close()
+    return response
+
+
+async def modbus_write_register(
+    con_params: Union[SerialConnectionConfig, ModbusSerialConnectionConfig],
+    register: int,
+    value: int,
+    slave: int = 1,
+    verbose: bool = False,
+) -> Union[ModbusResponse, None]:
+    """Write data value to the register"""
+    response: Union[ModbusResponse, None] = None
+    client = AsyncModbusSerialClient(**modbus_config(con_params))
+    await client.connect()
+    try:
+        response = await client.write_register(register, value, slave=slave)
+    except ModbusException as e:
+        if verbose:
+            print("Modbus Exception on write register", e)
+    client.close()
+    return response
 
 
 class RS485Client:
@@ -113,12 +163,51 @@ class RS485Client:
                 )
         return parsed
 
-    async def read_registers(self, start_register: int = 0, count: int = 1) -> bytes:
-        """Read multiple registers data"""
-        # replace this method with actual communication action
-        if self.verbose:
-            print(f"Read from REGs: {start_register} - {start_register + count}")
+    @staticmethod
+    def _get_payload(
+        response: Union[ModbusResponse, None], verbose: bool = True
+    ) -> bytes:
+        """Get the payload from the QTM response"""
+        if response:
+            if not response.isError():
+                # skip start and stop bytes and parse as a hex string
+                payload = (
+                    struct.pack(">BB", response.slave_id, response.function_code)
+                    + response.encode()
+                    + b"\x00"
+                )
+                return payload
+            if verbose:
+                print(f"Modbus Response Error {response.function_code}")
         return b""
+
+    async def read_registers(self, start_register: int = 0, count: int = 1) -> bytes:
+        """
+        Read registers data using pymodbus.
+        Redefine this method for serial or custom protocol.
+        """
+        response: Union[ModbusResponse, None] = await modbus_read_registers(
+            self.con_params,
+            start_register=start_register,
+            count=count,
+            slave=self.address,
+            verbose=self.verbose,
+        )
+        return self._get_payload(response, verbose=self.verbose)
+
+    async def write_register(self, register: int, value: int) -> bytes:
+        """
+        Write the data value to the register using pymodbus.
+        Redefine this method for serial or custom protocol.
+        """
+        response: Union[ModbusResponse, None] = await modbus_write_register(
+            self.con_params,
+            register=register,
+            value=value,
+            slave=self.address,
+            verbose=self.verbose,
+        )
+        return self._get_payload(response, verbose=self.verbose)
 
     async def read_parse_registers(
         self, start_register: int = 0, count: int = 1
@@ -134,13 +223,6 @@ class RS485Client:
             if parsed["addr"] == self.address:
                 return parsed
         return self._parse_response(b"")
-
-    async def write_register(self, register: int, value: int) -> bytes:
-        """Write the data value to the register"""
-        # replace this method with actual communication action
-        if self.verbose:
-            print(f"Write to REG: {register}, VAL: {value}")
-        return b""
 
     async def write_parse_register(self, register: int, data: int = 0) -> dict:
         """Write the data value to the register and return parsed response"""

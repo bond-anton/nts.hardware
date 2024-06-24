@@ -3,6 +3,7 @@
 from typing import Union
 import struct
 from pydantic import BaseModel
+from pymodbus.framer import ModbusAsciiFramer, ModbusRtuFramer
 
 
 class SerialConnectionConfig(BaseModel):
@@ -31,6 +32,16 @@ class ModbusSerialConnectionConfig(BaseModel):
     stopbits: int = 1
 
 
+def modbus_config(con_params: ModbusSerialConnectionConfig) -> dict:
+    """Build params for pymodbus connection from configuration"""
+    rs485_config: dict = con_params.model_dump()
+    if rs485_config["framer"] == "RTU":
+        rs485_config["framer"] = ModbusRtuFramer
+    else:
+        rs485_config["framer"] = ModbusAsciiFramer
+    return rs485_config
+
+
 class RS485Client:
     """RS-485 Client class"""
 
@@ -49,10 +60,9 @@ class RS485Client:
         self.response_delay: float = 5e-3
         self.verbose: bool = verbose
 
-    @staticmethod
-    def _parse_response(response: bytes, verbose: bool = True) -> dict:
+    def _parse_response(self, response: bytes) -> dict:
         """Response parser"""
-        if verbose:
+        if self.verbose:
             print(f"Parsing response: {response!r}")
         parsed: dict = {
             "crc": 0,
@@ -64,7 +74,7 @@ class RS485Client:
             "data": tuple(),
         }
         if not response:
-            if verbose:
+            if self.verbose:
                 print("Empty response")
             return parsed
         parsed["crc"] = response[-1]
@@ -74,7 +84,7 @@ class RS485Client:
             parsed["data_length"] = response[2]
             parsed["count"] = int(parsed["data_length"] / 2)
             parsed["data"] = struct.unpack(">" + "h" * parsed["count"], response[3:-1])
-            if verbose:
+            if self.verbose:
                 print(
                     f"CMD: {parsed['cmd']}, ADDR: {parsed['addr']}, LEN: {parsed['count']}, "
                     f"DATA: {parsed['data']}, CRC: {parsed['crc']}"
@@ -86,7 +96,7 @@ class RS485Client:
                 ">" + "h" * parsed["count"], response[2:4]
             )[0]
             parsed["data"] = struct.unpack(">" + "h" * parsed["count"], response[4:6])
-            if verbose:
+            if self.verbose:
                 print(
                     f"CMD: {parsed['cmd']}, ADDR: {parsed['addr']}, REG: {parsed['register']}, "
                     f"DATA: {parsed['data']}, CRC: {parsed['crc']}"
@@ -96,7 +106,7 @@ class RS485Client:
             parsed["data_length"] = 2
             parsed["count"] = 1
             parsed["data"] = struct.unpack(">h", response[2:4])
-            if verbose:
+            if self.verbose:
                 print(
                     f"ERR: {parsed['cmd']:x}, CMD: {parsed['cmd'] - 0x80}"
                     f"DATA: {parsed['data']}, CRC: {parsed['crc']}"
@@ -120,10 +130,10 @@ class RS485Client:
             response = await self.read_registers(
                 start_register=start_register, count=count
             )
-            parsed = self._parse_response(response, verbose=self.verbose)
+            parsed = self._parse_response(response)
             if parsed["addr"] == self.address:
                 return parsed
-        return self._parse_response(b"", verbose=self.verbose)
+        return self._parse_response(b"")
 
     async def write_register(self, register: int, value: int) -> bytes:
         """Write the data value to the register"""
@@ -138,10 +148,10 @@ class RS485Client:
             if self.verbose:
                 print(f"Iteration {iteration + 1} of {self.retries}")
             response = await self.write_register(register=register, value=data)
-            parsed = self._parse_response(response, verbose=self.verbose)
+            parsed = self._parse_response(response)
             if parsed["addr"] == self.address:
                 return parsed
-        return self._parse_response(b"", verbose=self.verbose)
+        return self._parse_response(b"")
 
     async def read_single_register_float(
         self, register: int, factor: int = 100

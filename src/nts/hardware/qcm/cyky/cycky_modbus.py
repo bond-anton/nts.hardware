@@ -5,11 +5,10 @@ import struct
 
 from pymodbus.client import AsyncModbusSerialClient
 from pymodbus.exceptions import ModbusException
-from pymodbus.framer import ModbusAsciiFramer, ModbusRtuFramer
 from pymodbus.pdu import ModbusResponse
 
 from .cyky import QTM
-from ...rs485 import ModbusSerialConnectionConfig
+from ...rs485 import ModbusSerialConnectionConfig, modbus_config
 
 
 class QTMModbus(QTM):
@@ -49,19 +48,10 @@ class QTMModbus(QTM):
                 print(f"Modbus Response Error {response.function_code}")
         return b""
 
-    def _rs485_config(self) -> dict:
-        """Build RS-485 config dict"""
-        rs485_config: dict = self.con_params.model_dump()
-        if rs485_config["framer"] == "RTU":
-            rs485_config["framer"] = ModbusRtuFramer
-        else:
-            rs485_config["framer"] = ModbusAsciiFramer
-        return rs485_config
-
     async def read_registers(self, start_register: int = 0, count: int = 1) -> bytes:
         """Read QTM registers data"""
         response: Union[ModbusResponse, None] = None
-        client = AsyncModbusSerialClient(**self._rs485_config())
+        client = AsyncModbusSerialClient(**modbus_config(self.con_params))
         await client.connect()
         try:
             response = await client.read_holding_registers(
@@ -76,7 +66,7 @@ class QTMModbus(QTM):
     async def write_register(self, register: int, value: int) -> bytes:
         """Write the data value to the register"""
         response: Union[ModbusResponse, None] = None
-        client = AsyncModbusSerialClient(**self._rs485_config())
+        client = AsyncModbusSerialClient(**modbus_config(self.con_params))
         await client.connect()
         try:
             response = await client.write_register(register, value, slave=self.address)

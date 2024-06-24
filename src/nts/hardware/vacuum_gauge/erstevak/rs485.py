@@ -9,7 +9,7 @@ from enum import Enum
 from decimal import Decimal
 from serial import Serial  # type: ignore
 
-from ...rs485 import SerialConnectionConfig
+from ...rs485 import SerialConnectionConfig, RS485Client
 
 
 #####################################################
@@ -139,7 +139,7 @@ def _parse_response(resp: bytes, address: int = 2, verbose: bool = True) -> dict
     return result
 
 
-class ErstevakRS485:
+class ErstevakRS485(RS485Client):
     """Erstevak gauge RS-485 communication"""
 
     def __init__(
@@ -149,50 +149,99 @@ class ErstevakRS485:
         retries: int = 5,
         verbose=False,
     ):
-        self.con_params: SerialConnectionConfig = con_params
-        self.address: int = address
-        self.retries = retries
-        self.response_delay: float = 5e-3
-        self.verbose: bool = verbose
+        super().__init__(
+            SerialConnectionConfig(**con_params.model_dump()), address, retries, verbose
+        )
+        self._registers: dict[int, str] = {
+            0: "T", 1: "M",
+            2: "S", 3: "s", 4: "s",
+            5: "C", 6: "c", 7: "c",
+            8: "j", 9: "j",
+            10: "I", 11: "i",
+            12: "W", 13: "w"
+        }
 
-    async def send_command(self, command: str, data: str = "") -> dict:
-        """Send command request to the gauge and receive a response"""
-        connection: Serial
-        parsed_data: dict
-        response: bytes = b""
-        for iteration in range(self.retries):
-            if self.verbose:
-                print(f"Iteration {iteration + 1} of {self.retries}")
-            msg: bytes = _build_message(command, data, self.address)
-            if self.verbose:
-                print(f"MSG: {msg!r}")
-            connection = Serial(**self.con_params.model_dump())
-            connection.write(msg)
-            await asyncio.sleep(self.response_delay)
-            response = connection.read_until(b"\r")[:-1]
-            connection.close()
-            parsed_data = _parse_response(response, self.address, verbose=self.verbose)
-            if parsed_data["cmd"] == command:
-                return parsed_data
-        return _parse_response(response, self.address, verbose=self.verbose)
+    def _parse_response(self, response: bytes) -> dict:
+        return _parse_response(response, address=self.address, verbose=self.verbose)
+
+    async def read_registers(self, start_register: int = 0, count: int = 1) -> bytes:
+        """Send command to gauge and read data"""
+        con: Serial
+        if start_register not in (0, 1, 10, 12):
+            return b""
+        command = self._registers[start_register]
+        msg: bytes = _build_message(command, "", self.address)
+        if self.verbose:
+            print(f"MSG: {msg!r}")
+        con = Serial(**self.con_params.model_dump())
+        con.write(msg)
+        await asyncio.sleep(self.response_delay)
+        response: bytes = con.read_until(b"\r")[:-1]
+        con.close()
+        return response
+
+    async def write_register(self, register: int, value: int) -> bytes:
+        """Write the data value to the register"""
+        con: Serial
+        data: str
+        if register in (0, 1, 10, 12):
+            return b""
+        command = self._registers[register]
+        if register in (4, 7, 9, 13):
+            data = f"{int(value)}:06d"
+        else:
+            data = f"{int(value)}"
+        msg: bytes = _build_message(command, data, self.address)
+        if self.verbose:
+            print(f"MSG: {msg!r}")
+        con = Serial(**self.con_params.model_dump())
+        con.write(msg)
+        await asyncio.sleep(self.response_delay)
+        response: bytes = con.read_until(b"\r")[:-1]
+        con.close()
+        return response
+
+    # async def send_command(self, command: str, data: str = "") -> dict:
+    #     """Send command request to the gauge and receive a response"""
+    #     connection: Serial
+    #     parsed_data: dict
+    #     response: bytes = b""
+    #     for iteration in range(self.retries):
+    #         if self.verbose:
+    #             print(f"Iteration {iteration + 1} of {self.retries}")
+    #         msg: bytes = _build_message(command, data, self.address)
+    #         if self.verbose:
+    #             print(f"MSG: {msg!r}")
+    #         connection = Serial(**self.con_params.model_dump())
+    #         connection.write(msg)
+    #         await asyncio.sleep(self.response_delay)
+    #         response = connection.read_until(b"\r")[:-1]
+    #         connection.close()
+    #         parsed_data = _parse_response(response, self.address, verbose=self.verbose)
+    #         if parsed_data["cmd"] == command:
+    #             return parsed_data
+    #     return _parse_response(response, self.address, verbose=self.verbose)
 
     async def get_gauge_type(self) -> str:
         """Get gauge model"""
-        data = await self.send_command("T")
+        # data = await self.send_command("T")
+        data = await self.read_parse_registers(0)
         if data["cmd"] == "T":
             return data["gauge_model"]
         return ""
 
     async def get_pressure(self) -> float:
         """Get pressure measurement"""
-        data = await self.send_command("M")
+        # data = await self.send_command("M")
+        data = await self.read_parse_registers(1)
         if data["cmd"] == "M":
             return data["pressure"]
         return 0.0
 
     async def get_setpoint(self, sp: int = 1) -> float:
         """Get setpoint pressure"""
-        data = await self.send_command("S", f"{sp}")
+        # data = await self.send_command("S", f"{sp}")
+        data = await self.write_parse_register(2, sp)
         if data["cmd"] == "S":
             return data["setpoint"]
         return 0.0
@@ -200,11 +249,13 @@ class ErstevakRS485:
     async def set_setpoint(self, pressure: float, sp: int = 1) -> float:
         """Set setpoint pressure"""
         # unlock setpoint register
-        data = await self.send_command("s", f"{sp}")
+        # data = await self.send_command("s", f"{sp}")
+        data = await self.write_parse_register(3, sp)
         if data["cmd"] == "s":
             if data["data"] == f"{sp}":  # unlocked
                 # write setpoint value to register
-                data = await self.send_command("s", _pressure_to_data(pressure))
+                # data = await self.send_command("s", _pressure_to_data(pressure))
+                data = await self.write_parse_register(4, int(_pressure_to_data(pressure)))
                 if data["cmd"] == "s" and data["setpoint"]:
                     return data["setpoint"]
         # if failed try to read setpoint value from register
@@ -212,7 +263,8 @@ class ErstevakRS485:
 
     async def get_calibration(self, cal_n: int = 1) -> float:
         """Get calibration coefficient"""
-        data = await self.send_command("C", f"{cal_n}")
+        # data = await self.send_command("C", f"{cal_n}")
+        data = await self.write_parse_register(5, cal_n)
         if data["cmd"] == "C":
             return data["calibration"]
         return 0.0
@@ -220,7 +272,8 @@ class ErstevakRS485:
     async def set_calibration(self, cal: Union[float, Enum], cal_n: int = 1) -> float:
         """Set calibration coefficient"""
         # unlock calibration register
-        data = await self.send_command("c", f"{cal_n}")
+        # data = await self.send_command("c", f"{cal_n}")
+        data = await self.write_parse_register(6, cal_n)
         if data["cmd"] == "c":
             if data["data"] == f"{cal_n}":  # unlocked
                 # write calibration value to register
@@ -228,7 +281,8 @@ class ErstevakRS485:
                     cal_f = cal.value
                 else:
                     cal_f = float(cal)
-                data = await self.send_command("c", _calibration_to_data(cal_f))
+                # data = await self.send_command("c", _calibration_to_data(cal_f))
+                data = await self.write_parse_register(7, int(_calibration_to_data(cal_f)))
                 if data["cmd"] == "c" and data["calibration"]:
                     return data["calibration"]
         # if failed try to read calibration value from register
@@ -237,11 +291,13 @@ class ErstevakRS485:
     async def set_atmosphere(self) -> float:
         """Calibrate atmospheric pressure"""
         # unlock register
-        data = await self.send_command("j", "1")
+        # data = await self.send_command("j", "1")
+        data = await self.write_parse_register(8, 1)
         if data["cmd"] == "j":
             if data["data"] == "1":  # unlocked
                 # write value to register
-                data = await self.send_command("j", "100023")
+                # data = await self.send_command("j", _pressure_to_data(1000.0))
+                data = await self.write_parse_register(9, int(_pressure_to_data(1000.0)))
                 if data["cmd"] == "j" and data["pressure"]:
                     return data["pressure"]
         return 0.0
@@ -249,11 +305,13 @@ class ErstevakRS485:
     async def set_zero(self) -> float:
         """Calibrate zero pressure"""
         # unlock register
-        data = await self.send_command("j", "0")
+        # data = await self.send_command("j", "0")
+        data = await self.write_parse_register(8, 0)
         if data["cmd"] == "j":
             if data["data"] == "0":  # unlocked
                 # write value to register
-                data = await self.send_command("j", "000000")
+                # data = await self.send_command("j", "000000")
+                data = await self.write_parse_register(9, 0)
                 if data["cmd"] == "j" and data["pressure"]:
                     return data["pressure"]
         return 0.0
@@ -263,14 +321,16 @@ class ErstevakRS485:
         Read the ON/OFF state of the penning gauge.
         Return True if penning is ON, False otherwise.
         """
-        data = await self.send_command("I")
+        # data = await self.send_command("I")
+        data = await self.read_parse_registers(7)
         if data["cmd"] == "I" and data["penning_enabled"] is not None:
             return data["penning_enabled"]
         return False
 
     async def set_penning_state(self, enable: bool = True) -> float:
         """Set penning gauge to ON/OFF"""
-        data = await self.send_command("i", f"{int(enable)}")
+        # data = await self.send_command("i", f"{int(enable)}")
+        data = await self.write_parse_register(11, int(enable))
         if data["cmd"] == "i" and data["penning_enabled"] is not None:
             return data["penning_enabled"]
         return await self.get_penning_state()
@@ -280,14 +340,16 @@ class ErstevakRS485:
         Read the ON/OFF state of the penning-pirani synchronization.
         Return True if sync is ON, False otherwise.
         """
-        data = await self.send_command("W")
+        # data = await self.send_command("W")
+        data = await self.read_parse_registers(9)
         if data["cmd"] == "W" and data["penning_sync"] is not None:
             return data["penning_sync"]
         return False
 
     async def set_penning_sync(self, enable: bool = True) -> float:
         """Set penning-pirani sync to ON/OFF"""
-        data = await self.send_command("w", f"{int(enable):06d}")
+        # data = await self.send_command("w", f"{int(enable):06d}")
+        data = await self.write_parse_register(13, int(enable))
         if data["cmd"] == "w" and data["penning_sync"] is not None:
             return data["penning_sync"]
         return await self.get_penning_sync()

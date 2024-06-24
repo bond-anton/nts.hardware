@@ -82,10 +82,10 @@ def _parse_response(resp: bytes, address: int = 2, verbose: bool = True) -> dict
     # pylint: disable=too-many-branches
 
     result: dict = {
-        "address": None,
+        "addr": None,
         "cmd": None,
         "data": None,
-        "cs": None,
+        "crc": None,
         "pressure": None,
         "setpoint": None,
         "calibration": None,
@@ -103,10 +103,10 @@ def _parse_response(resp: bytes, address: int = 2, verbose: bool = True) -> dict
             response: str = resp.decode()[:-1]
             r_address: int = int(response[:3])
             if address == r_address:
-                result["address"] = address
+                result["addr"] = address
                 result["cmd"] = response[3]
                 result["data"] = response[4:]
-                result["cs"] = cs
+                result["crc"] = cs
                 if result["cmd"] == "T":
                     result["gauge_model"] = result["data"]
                 elif result["cmd"] == "M":

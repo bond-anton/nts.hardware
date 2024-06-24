@@ -48,11 +48,11 @@ def f_man(number):
     return Decimal(number).scaleb(-f_exp(number)).normalize()
 
 
-def _pressure_to_data(pressure: float) -> str:
+def _pressure_to_data(pressure: float) -> int:
     """Convert pressure (in mbar) to data string"""
     base = int(f_man(pressure) * 1000)
     exp = int(f_exp(pressure) + 20)
-    return f"{base:04d}{exp}"
+    return int(f"{base:04d}{exp}")
 
 
 def _parse_pressure(data: str) -> float:
@@ -65,8 +65,8 @@ def _parse_pressure(data: str) -> float:
         return 0.0
 
 
-def _calibration_to_data(cal: float) -> str:
-    return f"{int(round(cal * 100)):06d}"
+def _calibration_to_data(cal: float) -> int:
+    return int(round(cal * 100))
 
 
 def _parse_calibration(data: str) -> float:
@@ -75,68 +75,6 @@ def _parse_calibration(data: str) -> float:
         return cal
     except TypeError:
         return 0.0
-
-
-def _parse_response(resp: bytes, address: int = 2, verbose: bool = True) -> dict:
-    """Parse gauge response"""
-    # pylint: disable=too-many-branches
-
-    result: dict = {
-        "addr": None,
-        "cmd": None,
-        "data": None,
-        "crc": None,
-        "pressure": None,
-        "setpoint": None,
-        "calibration": None,
-        "gauge_model": None,
-        "penning_enabled": None,
-        "penning_sync": None,
-    }
-    if verbose:
-        print(f"Parsing response {resp!r}")
-    if resp:
-        cs: int = _checksum(resp[:-1])
-        if verbose:
-            print(f"CS calc: {cs!r}, CS: {resp[-1]!r}")
-        if cs == resp[-1]:
-            response: str = resp.decode()[:-1]
-            r_address: int = int(response[:3])
-            if address == r_address:
-                result["addr"] = address
-                result["cmd"] = response[3]
-                result["data"] = response[4:]
-                result["crc"] = cs
-                if result["cmd"] == "T":
-                    result["gauge_model"] = result["data"]
-                elif result["cmd"] == "M":
-                    p = _parse_pressure(result["data"])
-                    result["pressure"] = p
-                elif result["cmd"] in ("S", "s"):
-                    if len(result["data"]) > 1:
-                        p = _parse_pressure(result["data"])
-                        result["setpoint"] = p
-                elif result["cmd"] in ("C", "c"):
-                    if len(result["data"]) > 1:
-                        cal = _parse_calibration(result["data"])
-                        result["calibration"] = cal
-                elif result["cmd"] == "j":
-                    if len(result["data"]) > 1:
-                        p = _parse_pressure(result["data"])
-                        result["pressure"] = p
-                elif result["cmd"] in ("I", "i"):
-                    result["penning_enabled"] = bool(int(result["data"]))
-                elif result["cmd"] in ("W", "w"):
-                    result["penning_sync"] = bool(int(result["data"]))
-            else:
-                if verbose:
-                    print("Wrong address")
-                return result
-        else:
-            if verbose:
-                print("Wrong checksum")
-            return result
-    return result
 
 
 class ErstevakRS485(RS485Client):
@@ -153,16 +91,82 @@ class ErstevakRS485(RS485Client):
             SerialConnectionConfig(**con_params.model_dump()), address, retries, verbose
         )
         self._registers: dict[int, str] = {
-            0: "T", 1: "M",
-            2: "S", 3: "s", 4: "s",
-            5: "C", 6: "c", 7: "c",
-            8: "j", 9: "j",
-            10: "I", 11: "i",
-            12: "W", 13: "w"
+            0: "T",
+            1: "M",
+            2: "S",
+            3: "s",
+            4: "s",
+            5: "C",
+            6: "c",
+            7: "c",
+            8: "j",
+            9: "j",
+            10: "I",
+            11: "i",
+            12: "W",
+            13: "w",
         }
 
     def _parse_response(self, response: bytes) -> dict:
-        return _parse_response(response, address=self.address, verbose=self.verbose)
+        """Parse gauge response"""
+        # pylint: disable=too-many-branches
+
+        result: dict = {
+            "addr": None,
+            "cmd": None,
+            "data": None,
+            "crc": None,
+            "pressure": None,
+            "setpoint": None,
+            "calibration": None,
+            "gauge_model": None,
+            "penning_enabled": None,
+            "penning_sync": None,
+        }
+        if self.verbose:
+            print(f"Parsing response {response!r}")
+        if response:
+            cs: int = _checksum(response[:-1])
+            if self.verbose:
+                print(f"CS calc: {cs!r}, CS: {response[-1]!r}")
+            if cs == response[-1]:
+                response_data: str = response.decode()[:-1]
+                r_address: int = int(response_data[:3])
+                if self.address == r_address:
+                    result["addr"] = self.address
+                    result["cmd"] = response_data[3]
+                    result["data"] = response_data[4:]
+                    result["crc"] = cs
+                    if result["cmd"] == "T":
+                        result["gauge_model"] = result["data"]
+                    elif result["cmd"] == "M":
+                        p = _parse_pressure(result["data"])
+                        result["pressure"] = p
+                    elif result["cmd"] in ("S", "s"):
+                        if len(result["data"]) > 1:
+                            p = _parse_pressure(result["data"])
+                            result["setpoint"] = p
+                    elif result["cmd"] in ("C", "c"):
+                        if len(result["data"]) > 1:
+                            cal = _parse_calibration(result["data"])
+                            result["calibration"] = cal
+                    elif result["cmd"] == "j":
+                        if len(result["data"]) > 1:
+                            p = _parse_pressure(result["data"])
+                            result["pressure"] = p
+                    elif result["cmd"] in ("I", "i"):
+                        result["penning_enabled"] = bool(int(result["data"]))
+                    elif result["cmd"] in ("W", "w"):
+                        result["penning_sync"] = bool(int(result["data"]))
+                else:
+                    if self.verbose:
+                        print("Wrong address")
+                    return result
+            else:
+                if self.verbose:
+                    print("Wrong checksum")
+                return result
+        return result
 
     async def read_registers(self, start_register: int = 0, count: int = 1) -> bytes:
         """Send command to gauge and read data"""
@@ -172,7 +176,7 @@ class ErstevakRS485(RS485Client):
         command = self._registers[start_register]
         msg: bytes = _build_message(command, "", self.address)
         if self.verbose:
-            print(f"MSG: {msg!r}")
+            print(f"RS485 MSG: {msg!r}")
         con = Serial(**self.con_params.model_dump())
         con.write(msg)
         await asyncio.sleep(self.response_delay)
@@ -188,12 +192,12 @@ class ErstevakRS485(RS485Client):
             return b""
         command = self._registers[register]
         if register in (4, 7, 9, 13):
-            data = f"{int(value)}:06d"
+            data = f"{int(value):06d}"
         else:
             data = f"{int(value)}"
         msg: bytes = _build_message(command, data, self.address)
         if self.verbose:
-            print(f"MSG: {msg!r}")
+            print(f"RS485 MSG: {msg!r}")
         con = Serial(**self.con_params.model_dump())
         con.write(msg)
         await asyncio.sleep(self.response_delay)
@@ -201,30 +205,8 @@ class ErstevakRS485(RS485Client):
         con.close()
         return response
 
-    # async def send_command(self, command: str, data: str = "") -> dict:
-    #     """Send command request to the gauge and receive a response"""
-    #     connection: Serial
-    #     parsed_data: dict
-    #     response: bytes = b""
-    #     for iteration in range(self.retries):
-    #         if self.verbose:
-    #             print(f"Iteration {iteration + 1} of {self.retries}")
-    #         msg: bytes = _build_message(command, data, self.address)
-    #         if self.verbose:
-    #             print(f"MSG: {msg!r}")
-    #         connection = Serial(**self.con_params.model_dump())
-    #         connection.write(msg)
-    #         await asyncio.sleep(self.response_delay)
-    #         response = connection.read_until(b"\r")[:-1]
-    #         connection.close()
-    #         parsed_data = _parse_response(response, self.address, verbose=self.verbose)
-    #         if parsed_data["cmd"] == command:
-    #             return parsed_data
-    #     return _parse_response(response, self.address, verbose=self.verbose)
-
     async def get_gauge_type(self) -> str:
         """Get gauge model"""
-        # data = await self.send_command("T")
         data = await self.read_parse_registers(0)
         if data["cmd"] == "T":
             return data["gauge_model"]
@@ -232,7 +214,6 @@ class ErstevakRS485(RS485Client):
 
     async def get_pressure(self) -> float:
         """Get pressure measurement"""
-        # data = await self.send_command("M")
         data = await self.read_parse_registers(1)
         if data["cmd"] == "M":
             return data["pressure"]
@@ -240,7 +221,6 @@ class ErstevakRS485(RS485Client):
 
     async def get_setpoint(self, sp: int = 1) -> float:
         """Get setpoint pressure"""
-        # data = await self.send_command("S", f"{sp}")
         data = await self.write_parse_register(2, sp)
         if data["cmd"] == "S":
             return data["setpoint"]
@@ -249,13 +229,11 @@ class ErstevakRS485(RS485Client):
     async def set_setpoint(self, pressure: float, sp: int = 1) -> float:
         """Set setpoint pressure"""
         # unlock setpoint register
-        # data = await self.send_command("s", f"{sp}")
         data = await self.write_parse_register(3, sp)
         if data["cmd"] == "s":
             if data["data"] == f"{sp}":  # unlocked
                 # write setpoint value to register
-                # data = await self.send_command("s", _pressure_to_data(pressure))
-                data = await self.write_parse_register(4, int(_pressure_to_data(pressure)))
+                data = await self.write_parse_register(4, _pressure_to_data(pressure))
                 if data["cmd"] == "s" and data["setpoint"]:
                     return data["setpoint"]
         # if failed try to read setpoint value from register
@@ -263,7 +241,6 @@ class ErstevakRS485(RS485Client):
 
     async def get_calibration(self, cal_n: int = 1) -> float:
         """Get calibration coefficient"""
-        # data = await self.send_command("C", f"{cal_n}")
         data = await self.write_parse_register(5, cal_n)
         if data["cmd"] == "C":
             return data["calibration"]
@@ -272,7 +249,6 @@ class ErstevakRS485(RS485Client):
     async def set_calibration(self, cal: Union[float, Enum], cal_n: int = 1) -> float:
         """Set calibration coefficient"""
         # unlock calibration register
-        # data = await self.send_command("c", f"{cal_n}")
         data = await self.write_parse_register(6, cal_n)
         if data["cmd"] == "c":
             if data["data"] == f"{cal_n}":  # unlocked
@@ -281,8 +257,7 @@ class ErstevakRS485(RS485Client):
                     cal_f = cal.value
                 else:
                     cal_f = float(cal)
-                # data = await self.send_command("c", _calibration_to_data(cal_f))
-                data = await self.write_parse_register(7, int(_calibration_to_data(cal_f)))
+                data = await self.write_parse_register(7, _calibration_to_data(cal_f))
                 if data["cmd"] == "c" and data["calibration"]:
                     return data["calibration"]
         # if failed try to read calibration value from register
@@ -291,13 +266,11 @@ class ErstevakRS485(RS485Client):
     async def set_atmosphere(self) -> float:
         """Calibrate atmospheric pressure"""
         # unlock register
-        # data = await self.send_command("j", "1")
         data = await self.write_parse_register(8, 1)
         if data["cmd"] == "j":
             if data["data"] == "1":  # unlocked
                 # write value to register
-                # data = await self.send_command("j", _pressure_to_data(1000.0))
-                data = await self.write_parse_register(9, int(_pressure_to_data(1000.0)))
+                data = await self.write_parse_register(9, _pressure_to_data(1000.0))
                 if data["cmd"] == "j" and data["pressure"]:
                     return data["pressure"]
         return 0.0
@@ -305,12 +278,10 @@ class ErstevakRS485(RS485Client):
     async def set_zero(self) -> float:
         """Calibrate zero pressure"""
         # unlock register
-        # data = await self.send_command("j", "0")
         data = await self.write_parse_register(8, 0)
         if data["cmd"] == "j":
             if data["data"] == "0":  # unlocked
                 # write value to register
-                # data = await self.send_command("j", "000000")
                 data = await self.write_parse_register(9, 0)
                 if data["cmd"] == "j" and data["pressure"]:
                     return data["pressure"]
@@ -321,7 +292,6 @@ class ErstevakRS485(RS485Client):
         Read the ON/OFF state of the penning gauge.
         Return True if penning is ON, False otherwise.
         """
-        # data = await self.send_command("I")
         data = await self.read_parse_registers(7)
         if data["cmd"] == "I" and data["penning_enabled"] is not None:
             return data["penning_enabled"]
@@ -329,8 +299,7 @@ class ErstevakRS485(RS485Client):
 
     async def set_penning_state(self, enable: bool = True) -> float:
         """Set penning gauge to ON/OFF"""
-        # data = await self.send_command("i", f"{int(enable)}")
-        data = await self.write_parse_register(11, int(enable))
+        data = await self.write_parse_register(11, int(bool(enable)))
         if data["cmd"] == "i" and data["penning_enabled"] is not None:
             return data["penning_enabled"]
         return await self.get_penning_state()
@@ -340,7 +309,6 @@ class ErstevakRS485(RS485Client):
         Read the ON/OFF state of the penning-pirani synchronization.
         Return True if sync is ON, False otherwise.
         """
-        # data = await self.send_command("W")
         data = await self.read_parse_registers(9)
         if data["cmd"] == "W" and data["penning_sync"] is not None:
             return data["penning_sync"]
@@ -348,8 +316,7 @@ class ErstevakRS485(RS485Client):
 
     async def set_penning_sync(self, enable: bool = True) -> float:
         """Set penning-pirani sync to ON/OFF"""
-        # data = await self.send_command("w", f"{int(enable):06d}")
-        data = await self.write_parse_register(13, int(enable))
+        data = await self.write_parse_register(13, int(bool(enable)))
         if data["cmd"] == "w" and data["penning_sync"] is not None:
             return data["penning_sync"]
         return await self.get_penning_sync()

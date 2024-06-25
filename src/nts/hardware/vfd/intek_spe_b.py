@@ -1,6 +1,6 @@
 """Intek SPE-B VFD RS485 control routines"""
 
-from .vfd import VFD, VFDError  # , VFDState, VFDParameters
+from .vfd import VFD, VFDError, VFDState, VFDParameters
 from ..rs485 import ModbusSerialConnectionConfig
 
 
@@ -83,13 +83,47 @@ class VFDIntekSPEb(VFD):
     # Errors processing methods
     async def read_error_code(self) -> int:
         """Read error code from the VFD"""
-        return int(await self.read_single_register_float(8000, 1))
+        return int(await self.read_single_register_float(0x8000, 1))
 
     async def read_error_code_com(self) -> int:
         """Read communication error code from the VFD"""
-        return int(await self.read_single_register_float(8001, 1))
+        return int(await self.read_single_register_float(0x8001, 1))
 
     async def clear_error(self) -> int:
         """Clear error from the VFD"""
-        await self.write_parse_register(2000, 7)
+        await self.write_parse_register(0x2000, 7)
         return await self.read_error_code()
+
+    # Parameters monitoring methods
+    async def read_parameters(self) -> VFDParameters:
+        """Start the VFD"""
+        data = await self.read_parse_registers(1000, 6)
+        return VFDParameters(
+            frequency=data["data"][1], frequency_percent=data["data"][1]
+        )
+
+    async def read_state(self) -> VFDState:
+        """Start the VFD"""
+        state = int(await self.read_single_register_float(0x3000, 1))
+        if state == 1:
+            return VFDState.RUNNING_FORWARD
+        if state == 2:
+            return VFDState.RUNNING_BACKWARD
+        if state == 3:
+            return VFDState.STOPPED
+        return VFDState.UNKNOWN
+
+    # VFD Control methods
+    async def start(self, backward: bool = False, slow: bool = False) -> None:
+        """Start the VFD"""
+        cmd: int = 1
+        if backward:
+            cmd = 4 if slow else 2
+        elif slow:
+            cmd = 3
+        await self.write_parse_register(0x2000, cmd)
+
+    async def stop(self, freewheel: bool = False) -> None:
+        """Start the VFD"""
+        cmd: int = 5 if freewheel else 6
+        await self.write_parse_register(0x2000, cmd)

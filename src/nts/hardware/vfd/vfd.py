@@ -11,9 +11,10 @@ from ..rs485 import RS485Client, SerialConnectionConfig, ModbusSerialConnectionC
 class VFDState(Enum):
     """Possible states of the VFD"""
 
+    UNKNOWN = "Unknown"
     STOPPED = "Stopped"
     RUNNING_FORWARD = "Running forward"
-    RUNNING_REVERSE = "Running reverse"
+    RUNNING_BACKWARD = "Running reverse"
 
 
 class VFDError(BaseModel):
@@ -94,11 +95,18 @@ class VFD(RS485Client):
         await asyncio.sleep(self.response_delay)
         return VFDParameters(frequency=0.0, frequency_percent=0.0)
 
-    # VFD Control methods
-    async def start(self) -> None:
+    async def read_state(self) -> VFDState:
         """Start the VFD"""
         await asyncio.sleep(self.response_delay)
+        return VFDState.UNKNOWN
 
-    async def stop(self) -> None:
+    # VFD Control methods
+    async def start(self, backward: bool = False, slow: bool = False) -> None:
         """Start the VFD"""
+        # pylint: disable=unused-argument
+        await asyncio.sleep(self.response_delay)
+
+    async def stop(self, freewheel: bool = False) -> None:
+        """Start the VFD"""
+        # pylint: disable=unused-argument
         await asyncio.sleep(self.response_delay)

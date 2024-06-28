@@ -119,7 +119,7 @@ class RS485Client:
 
     def _parse_response(self, response: bytes) -> dict:
         """Response parser"""
-        self.logger.debug("Parsing response: %s", response)
+        self.logger.debug("Parsing response: %s", response.hex())
         parsed: dict = {
             "crc": 0,
             "addr": -1,  # 0 is reserved for MODBUS as a broadcast address

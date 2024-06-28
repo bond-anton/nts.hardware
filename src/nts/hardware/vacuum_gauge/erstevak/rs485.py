@@ -86,9 +86,15 @@ class ErstevakRS485(RS485Client):
         address: int = 1,
         retries: int = 5,
         label: str = "Erstevak Gauge",
+        **kwargs,
     ):
+        # pylint: disable=R0801
         super().__init__(
-            SerialConnectionConfig(**con_params.model_dump()), address, retries, label
+            SerialConnectionConfig(**con_params.model_dump()),
+            address,
+            retries,
+            label,
+            **kwargs,
         )
         self._registers: dict[int, str] = {
             0: "T",

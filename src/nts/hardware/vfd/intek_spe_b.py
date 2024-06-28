@@ -70,6 +70,7 @@ class VFDIntekSPEb(VFD):
         address: int = 1,
         retries: int = 5,
         label: str = "VFD",
+        **kwargs,
     ):
         super().__init__(
             con_params=ModbusSerialConnectionConfig(**con_params.model_dump()),
@@ -78,6 +79,7 @@ class VFDIntekSPEb(VFD):
             label=label,
             error_codes=intek_spe_b_error_codes,
             error_codes_com=intek_spe_b_error_codes_com,
+            **kwargs,
         )
 
     # Errors processing methods

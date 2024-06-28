@@ -22,9 +22,14 @@ class QTMSerial(QTM):
         address: int = 1,
         retries: int = 5,
         label: str = "QTM",
+        **kwargs,
     ):
         super().__init__(
-            SerialConnectionConfig(**con_params.model_dump()), address, retries, label
+            SerialConnectionConfig(**con_params.model_dump()),
+            address,
+            retries,
+            label,
+            **kwargs,
         )
 
     @staticmethod

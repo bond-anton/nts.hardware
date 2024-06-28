@@ -49,10 +49,15 @@ class VFD(RS485Client):
         error_codes: Union[dict[int, VFDError], None] = None,
         error_codes_com: Union[dict[int, VFDError], None] = None,
         label: str = "VFD",
+        **kwargs,
     ):
         # pylint: disable=too-many-arguments
         super().__init__(
-            con_params=con_params, address=address, retries=retries, label=label
+            con_params=con_params,
+            address=address,
+            retries=retries,
+            label=label,
+            **kwargs,
         )
         self.error_codes: dict[int, VFDError]
         self.error_codes_com: dict[int, VFDError]

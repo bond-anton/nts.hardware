@@ -140,7 +140,7 @@ class RS485Client:
             parsed["count"] = int(parsed["data_length"] / 2)
             parsed["data"] = struct.unpack(">" + "h" * parsed["count"], response[3:-1])
             self.logger.debug(
-                "CMD: %s, ADDR: %s, LEN: %s, DATA: %d, CRC: %s",
+                "CMD: %d, ADDR: %d, LEN: %d, DATA: %s, CRC: %s",
                 parsed["cmd"],
                 parsed["addr"],
                 parsed["count"],
@@ -155,7 +155,7 @@ class RS485Client:
             )[0]
             parsed["data"] = struct.unpack(">" + "h" * parsed["count"], response[4:6])
             self.logger.debug(
-                "CMD: %s, ADDR: %s, REG: %s, DATA: %s, CRC: %s",
+                "CMD: %d, ADDR: %d, REG: %s, DATA: %s, CRC: %s",
                 parsed["cmd"],
                 parsed["addr"],
                 parsed["register"],

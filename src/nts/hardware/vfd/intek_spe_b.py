@@ -69,13 +69,13 @@ class VFDIntekSPEb(VFD):
         con_params: ModbusSerialConnectionConfig,
         address: int = 1,
         retries: int = 5,
-        verbose=False,
+        label: str = "VFD",
     ):
         super().__init__(
             con_params=ModbusSerialConnectionConfig(**con_params.model_dump()),
             address=address,
             retries=retries,
-            verbose=verbose,
+            label=label,
             error_codes=intek_spe_b_error_codes,
             error_codes_com=intek_spe_b_error_codes_com,
         )

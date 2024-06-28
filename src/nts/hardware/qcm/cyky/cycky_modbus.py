@@ -14,11 +14,11 @@ class QTMModbus(QTM):
         con_params: ModbusSerialConnectionConfig,
         address: int = 1,
         retries: int = 5,
-        verbose=False,
+        label: str = "QTM",
     ):
         super().__init__(
             ModbusSerialConnectionConfig(**con_params.model_dump()),
             address,
             retries,
-            verbose,
+            label,
         )

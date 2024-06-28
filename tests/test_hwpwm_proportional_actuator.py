@@ -1,6 +1,7 @@
 """ Testing HWPWMProportionalActuator class """
 
 import unittest
+import logging
 
 # pylint: disable=ungrouped-imports
 # Conditional ungrouped import is reasonable in this case.
@@ -36,37 +37,33 @@ class TestHWPWMProportionalActuator(unittest.TestCase):
         self.assertEqual(hwpwm_actuator.normally_off, True)
         self.assertEqual(hwpwm_actuator.normally_on, False)
         self.assertEqual(hwpwm_actuator.value, 0)
-        self.assertEqual(hwpwm_actuator.verbose, False)
 
         hwpwm_actuator = HWPWMProportionalActuator(
-            self.pwm, label="MY ACTUATOR", normally_off=False, verbose=True
+            self.pwm, label="MY ACTUATOR", normally_off=False, log_level=logging.DEBUG
         )
         self.assertEqual(hwpwm_actuator.label, "MY ACTUATOR")
         self.assertEqual(hwpwm_actuator._is_normally_off(), False)
         self.assertEqual(hwpwm_actuator.normally_off, False)
         self.assertEqual(hwpwm_actuator.normally_on, True)
         self.assertEqual(hwpwm_actuator.value, 1)
-        self.assertEqual(hwpwm_actuator.verbose, True)
 
         hwpwm_actuator = HWPWMProportionalActuator(
-            self.pwm, label="MY ACTUATOR", normally_on=True, verbose=False
+            self.pwm, label="MY ACTUATOR", normally_on=True, log_level=logging.DEBUG
         )
         self.assertEqual(hwpwm_actuator.label, "MY ACTUATOR")
         self.assertEqual(hwpwm_actuator._is_normally_off(), False)
         self.assertEqual(hwpwm_actuator.normally_off, False)
         self.assertEqual(hwpwm_actuator.normally_on, True)
         self.assertEqual(hwpwm_actuator.value, 1)
-        self.assertEqual(hwpwm_actuator.verbose, False)
 
         hwpwm_actuator = HWPWMProportionalActuator(
-            self.pwm, label="MY ACTUATOR", normally_on=False, verbose=True
+            self.pwm, label="MY ACTUATOR", normally_on=False, log_level=logging.DEBUG
         )
         self.assertEqual(hwpwm_actuator.label, "MY ACTUATOR")
         self.assertEqual(hwpwm_actuator._is_normally_off(), True)
         self.assertEqual(hwpwm_actuator.normally_off, True)
         self.assertEqual(hwpwm_actuator.normally_on, False)
         self.assertEqual(hwpwm_actuator.value, 0)
-        self.assertEqual(hwpwm_actuator.verbose, True)
 
     def test_value(self):
         """Test value property"""
@@ -117,7 +114,7 @@ class TestHWPWMProportionalActuator(unittest.TestCase):
     def test_switching(self):
         """Test switching on and off"""
         hwpwm_actuator = HWPWMProportionalActuator(
-            self.pwm, normally_off=True, verbose=True
+            self.pwm, normally_off=True, log_level=logging.DEBUG
         )
         self.assertEqual(hwpwm_actuator.value, 0)
         self.assertEqual(hwpwm_actuator.current_state, hwpwm_actuator.off)
@@ -135,7 +132,7 @@ class TestHWPWMProportionalActuator(unittest.TestCase):
         self.assertEqual(hwpwm_actuator.current_state, hwpwm_actuator.on)
 
         hwpwm_actuator = HWPWMProportionalActuator(
-            self.pwm, normally_off=False, verbose=True
+            self.pwm, normally_off=False, log_level=logging.DEBUG
         )
         self.assertEqual(hwpwm_actuator.value, 1)
         self.assertEqual(hwpwm_actuator.current_state, hwpwm_actuator.on)
@@ -146,7 +143,7 @@ class TestHWPWMProportionalActuator(unittest.TestCase):
     def test_change_frequency(self):
         """Test frequency change"""
         hwpwm_actuator = HWPWMProportionalActuator(
-            self.pwm, normally_off=True, verbose=True
+            self.pwm, normally_off=True, log_level=logging.DEBUG
         )
         hwpwm_actuator.set_frequency(2000)
 

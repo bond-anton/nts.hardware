@@ -1,6 +1,7 @@
 """ Testing GPIOProportionalActuator class """
 
 import unittest
+import logging
 from gpiozero import Device, PWMOutputDevice  # type: ignore
 from gpiozero.pins.mock import MockFactory
 
@@ -31,37 +32,33 @@ class TestGPIOProportionalActuator(unittest.TestCase):
         self.assertEqual(gpio_actuator.normally_off, True)
         self.assertEqual(gpio_actuator.normally_on, False)
         self.assertEqual(gpio_actuator.value, 0)
-        self.assertEqual(gpio_actuator.verbose, False)
 
         gpio_actuator = GPIOProportionalActuator(
-            self.pwm, label="MY ACTUATOR", normally_off=False, verbose=True
+            self.pwm, label="MY ACTUATOR", normally_off=False, log_level=logging.DEBUG
         )
         self.assertEqual(gpio_actuator.label, "MY ACTUATOR")
         self.assertEqual(gpio_actuator._is_normally_off(), False)
         self.assertEqual(gpio_actuator.normally_off, False)
         self.assertEqual(gpio_actuator.normally_on, True)
         self.assertEqual(gpio_actuator.value, 1)
-        self.assertEqual(gpio_actuator.verbose, True)
 
         gpio_actuator = GPIOProportionalActuator(
-            self.pwm, label="MY ACTUATOR", normally_on=True, verbose=False
+            self.pwm, label="MY ACTUATOR", normally_on=True, log_level=logging.DEBUG
         )
         self.assertEqual(gpio_actuator.label, "MY ACTUATOR")
         self.assertEqual(gpio_actuator._is_normally_off(), False)
         self.assertEqual(gpio_actuator.normally_off, False)
         self.assertEqual(gpio_actuator.normally_on, True)
         self.assertEqual(gpio_actuator.value, 1)
-        self.assertEqual(gpio_actuator.verbose, False)
 
         gpio_actuator = GPIOProportionalActuator(
-            self.pwm, label="MY ACTUATOR", normally_on=False, verbose=True
+            self.pwm, label="MY ACTUATOR", normally_on=False, log_level=logging.DEBUG
         )
         self.assertEqual(gpio_actuator.label, "MY ACTUATOR")
         self.assertEqual(gpio_actuator._is_normally_off(), True)
         self.assertEqual(gpio_actuator.normally_off, True)
         self.assertEqual(gpio_actuator.normally_on, False)
         self.assertEqual(gpio_actuator.value, 0)
-        self.assertEqual(gpio_actuator.verbose, True)
 
     def test_value(self):
         """Test value property"""
@@ -112,7 +109,7 @@ class TestGPIOProportionalActuator(unittest.TestCase):
     def test_switching(self):
         """Test switching on and off"""
         gpio_actuator = GPIOProportionalActuator(
-            self.pwm, normally_off=True, verbose=True
+            self.pwm, normally_off=True, log_level=logging.DEBUG
         )
         self.assertEqual(gpio_actuator.value, 0)
         self.assertEqual(gpio_actuator.current_state, gpio_actuator.off)
@@ -130,7 +127,7 @@ class TestGPIOProportionalActuator(unittest.TestCase):
         self.assertEqual(gpio_actuator.current_state, gpio_actuator.on)
 
         gpio_actuator = GPIOProportionalActuator(
-            self.pwm, normally_off=False, verbose=True
+            self.pwm, normally_off=False, log_level=logging.DEBUG
         )
         self.assertEqual(gpio_actuator.value, 1)
         self.assertEqual(gpio_actuator.current_state, gpio_actuator.on)
@@ -141,7 +138,7 @@ class TestGPIOProportionalActuator(unittest.TestCase):
     def test_change_frequency(self):
         """test frequency change"""
         gpio_actuator = GPIOProportionalActuator(
-            self.pwm, normally_off=True, verbose=True
+            self.pwm, normally_off=True, log_level=logging.DEBUG
         )
         gpio_actuator.set_frequency(2000)
 

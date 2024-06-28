@@ -85,10 +85,10 @@ class ErstevakRS485(RS485Client):
         con_params: SerialConnectionConfig,
         address: int = 1,
         retries: int = 5,
-        verbose=False,
+        label: str = "Erstevak Gauge",
     ):
         super().__init__(
-            SerialConnectionConfig(**con_params.model_dump()), address, retries, verbose
+            SerialConnectionConfig(**con_params.model_dump()), address, retries, label
         )
         self._registers: dict[int, str] = {
             0: "T",
@@ -123,12 +123,10 @@ class ErstevakRS485(RS485Client):
             "penning_enabled": None,
             "penning_sync": None,
         }
-        if self.verbose:
-            print(f"Parsing response {response!r}")
+        self.logger.debug("Parsing response %s", response)
         if response:
             cs: int = _checksum(response[:-1])
-            if self.verbose:
-                print(f"CS calc: {cs!r}, CS: {response[-1]!r}")
+            self.logger.debug("CS calc: %s, CS: %s", cs, response[-1])
             if cs == response[-1]:
                 response_data: str = response.decode()[:-1]
                 r_address: int = int(response_data[:3])
@@ -159,12 +157,10 @@ class ErstevakRS485(RS485Client):
                     elif result["cmd"] in ("W", "w"):
                         result["penning_sync"] = bool(int(result["data"]))
                 else:
-                    if self.verbose:
-                        print("Wrong address")
+                    self.logger.error("Wrong address")
                     return result
             else:
-                if self.verbose:
-                    print("Wrong checksum")
+                self.logger.error("Wrong checksum")
                 return result
         return result
 
@@ -175,8 +171,7 @@ class ErstevakRS485(RS485Client):
             return b""
         command = self._registers[start_register]
         msg: bytes = _build_message(command, "", self.address)
-        if self.verbose:
-            print(f"RS485 MSG: {msg!r}")
+        self.logger.debug("RS485 MSG: %s", msg)
         con = Serial(**self.con_params.model_dump())
         con.write(msg)
         await asyncio.sleep(self.response_delay)
@@ -196,8 +191,7 @@ class ErstevakRS485(RS485Client):
         else:
             data = f"{int(value)}"
         msg: bytes = _build_message(command, data, self.address)
-        if self.verbose:
-            print(f"RS485 MSG: {msg!r}")
+        self.logger.debug("RS485 MSG: %s", msg)
         con = Serial(**self.con_params.model_dump())
         con.write(msg)
         await asyncio.sleep(self.response_delay)

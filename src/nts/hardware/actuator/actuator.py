@@ -3,6 +3,8 @@
 from statemachine import StateMachine, State  # type: ignore
 from gpiozero import OutputDevice  # type: ignore
 
+from .. import get_logger
+
 
 class Actuator(StateMachine):
     """
@@ -26,6 +28,10 @@ class Actuator(StateMachine):
 
     def __init__(self, label: str = "ACTUATOR", **kwargs) -> None:
         self.__label: str = str(label)
+        self.logger = get_logger(
+            self.__label,
+            int(kwargs.pop("log_level")) if "log_level" in kwargs else None,
+        )
         self.__normally_off = True
         self._value: float = 0  # value = 0 - Valve closed, value = 1 - Valve opened
         if "normally_off" in kwargs:
@@ -35,9 +41,6 @@ class Actuator(StateMachine):
         if not self.__normally_off:
             self._value = 1
         self._value_stored: float = self._value
-        self.__verbose: bool = False
-        if "verbose" in kwargs:
-            self.__verbose = bool(kwargs.pop("verbose"))
 
         super().__init__(**kwargs)
 
@@ -90,49 +93,44 @@ class Actuator(StateMachine):
         """Check if the actuator has positive value"""
         return self.value > 0
 
-    @property
-    def verbose(self) -> bool:
-        """Verbose property"""
-        return self.__verbose
-
-    @verbose.setter
-    def verbose(self, verbose: bool) -> None:
-        """Verbose property setter"""
-        self.__verbose = bool(verbose)
-
     def before_change_value(
         self, event: str, source: State, target: State, message: str = ""
     ) -> None:
         """Preparations before value change"""
-        if self.verbose:
-            message = ". " + message if message else ""
-            print(
-                f"[{event.upper():^10s}] {self.label} is going to {event} "
-                f"from {source.id.upper()} to {target.id.upper()}{message}"
-            )
+        message = ". " + message if message else ""
+        self.logger.debug(
+            "%s %s is going to %s from %s to %s%s",
+            event.upper(),
+            self.label,
+            event,
+            source.id.upper(),
+            target.id.upper(),
+            message,
+        )
 
     def on_change_value(
         self, event: str, source: State, target: State, message: str = ""
     ) -> None:
         """value change action"""
         self._apply_value()
-        if self.verbose:
-            message = f". {message}." if message else ""
-            print(
-                f"[{event.upper():^10s}] {self.label} state changed "
-                f"from {source.id.upper()} to {target.id.upper()}{message}"
-            )
-            print(f"[{event.upper():^10s}] {self.label} value is {self.value}")
+        message = f". {message}." if message else ""
+        self.logger.debug(
+            "%s %s state changed from %s to %s%s",
+            event.upper(),
+            self.label,
+            source.id.upper(),
+            target.id.upper(),
+            message,
+        )
+        self.logger.debug("%s %s value is %s", event.upper(), self.label, self.value)
 
     def on_enter_off(self, event: str, state: State) -> None:
         """Switch off action"""
-        if self.verbose:
-            print(f"[{event.upper():^10s}] {self.label} is {state.id.upper()}.")
+        self.logger.debug("%s %s is %s.", event.upper(), self.label, state.id.upper())
 
     def on_enter_on(self, event: str, state: State) -> None:
         """Switch on action"""
-        if self.verbose:
-            print(f"[{event.upper():^10s}] {self.label} is {state.id.upper()}.")
+        self.logger.debug("%s %s is %s.", event.upper(), self.label, state.id.upper())
 
     def _apply_value(self) -> None:
         """Value change function to be reimplemented"""

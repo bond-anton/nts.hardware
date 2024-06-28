@@ -1,6 +1,7 @@
 """ Testing PWMProportionalActuator class """
 
 import unittest
+import logging
 
 try:
     from src.nts.hardware.actuator import PWMProportionalActuator
@@ -24,40 +25,36 @@ class TestPWMProportionalActuator(unittest.TestCase):
         self.assertEqual(pwm_actuator.normally_off, True)
         self.assertEqual(pwm_actuator.normally_on, False)
         self.assertEqual(pwm_actuator.value, 0)
-        self.assertEqual(pwm_actuator.verbose, False)
         self.assertEqual(pwm_actuator.pwm_range, (0.0, 1.0))
         self.assertEqual(pwm_actuator.pwm_value, 0.0)
         self.assertEqual(pwm_actuator.frequency_range, (1e-3, 1e6))
 
         pwm_actuator = PWMProportionalActuator(
-            label="MY ACTUATOR", normally_off=False, verbose=True
+            label="MY ACTUATOR", normally_off=False, log_level=logging.DEBUG
         )
         self.assertEqual(pwm_actuator.label, "MY ACTUATOR")
         self.assertEqual(pwm_actuator._is_normally_off(), False)
         self.assertEqual(pwm_actuator.normally_off, False)
         self.assertEqual(pwm_actuator.normally_on, True)
         self.assertEqual(pwm_actuator.value, 1)
-        self.assertEqual(pwm_actuator.verbose, True)
 
         pwm_actuator = PWMProportionalActuator(
-            label="MY ACTUATOR", normally_on=True, verbose=False
+            label="MY ACTUATOR", normally_on=True, log_level=logging.DEBUG
         )
         self.assertEqual(pwm_actuator.label, "MY ACTUATOR")
         self.assertEqual(pwm_actuator._is_normally_off(), False)
         self.assertEqual(pwm_actuator.normally_off, False)
         self.assertEqual(pwm_actuator.normally_on, True)
         self.assertEqual(pwm_actuator.value, 1)
-        self.assertEqual(pwm_actuator.verbose, False)
 
         pwm_actuator = PWMProportionalActuator(
-            label="MY ACTUATOR", normally_on=False, verbose=True
+            label="MY ACTUATOR", normally_on=False, log_level=logging.DEBUG
         )
         self.assertEqual(pwm_actuator.label, "MY ACTUATOR")
         self.assertEqual(pwm_actuator._is_normally_off(), True)
         self.assertEqual(pwm_actuator.normally_off, True)
         self.assertEqual(pwm_actuator.normally_on, False)
         self.assertEqual(pwm_actuator.value, 0)
-        self.assertEqual(pwm_actuator.verbose, True)
 
     def test_frequency_range(self):
         """test frequency_range property"""
@@ -160,7 +157,9 @@ class TestPWMProportionalActuator(unittest.TestCase):
 
     def test_switching(self):
         """Test switching on and off"""
-        pwm_actuator = PWMProportionalActuator(normally_off=True, verbose=True)
+        pwm_actuator = PWMProportionalActuator(
+            normally_off=True, log_level=logging.DEBUG
+        )
         self.assertEqual(pwm_actuator.value, 0)
         self.assertEqual(pwm_actuator.current_state, pwm_actuator.off)
         pwm_actuator.switch_on()
@@ -176,7 +175,9 @@ class TestPWMProportionalActuator(unittest.TestCase):
         self.assertEqual(pwm_actuator.value, 0.1)
         self.assertEqual(pwm_actuator.current_state, pwm_actuator.on)
 
-        pwm_actuator = PWMProportionalActuator(normally_off=False, verbose=True)
+        pwm_actuator = PWMProportionalActuator(
+            normally_off=False, log_level=logging.DEBUG
+        )
         self.assertEqual(pwm_actuator.value, 1)
         self.assertEqual(pwm_actuator.current_state, pwm_actuator.on)
         pwm_actuator.switch_off()
@@ -185,7 +186,9 @@ class TestPWMProportionalActuator(unittest.TestCase):
 
     def test_change_frequency(self):
         """test frequency change"""
-        gpio_actuator = PWMProportionalActuator(normally_off=True, verbose=True)
+        gpio_actuator = PWMProportionalActuator(
+            normally_off=True, log_level=logging.DEBUG
+        )
         gpio_actuator.set_frequency(2000)
 
 

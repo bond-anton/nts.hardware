@@ -51,8 +51,7 @@ class QTM(RS485Client):
             a = int(coded_str[0], 16)
             b = int(coded_str[1], 16)
             c = int(coded_str[2], 16)
-            if self.verbose:
-                print(f"t: {a * 100} ms, PWM mode: {b}, Rate mode: {c}")
+            self.logger.debug("t: %d ms, PWM mode: %d, Rate mode: %d", a * 100, b, c)
             return a, b, c
         return 0, 0, 0
 
@@ -81,8 +80,7 @@ class QTM(RS485Client):
             coded_str: str = f"{response['data'][0]:04x}"
             y = int(coded_str[2], 16)
             x = int(coded_str[3], 16)
-            if self.verbose:
-                print(f"X: {x}, Y: {y}")
+            self.logger.debug("X: %d, Y: %d", x, y)
             return x, y
         return 0, 0
 

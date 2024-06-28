@@ -1,6 +1,7 @@
 """ Testing ProportionalActuator class """
 
 import unittest
+import logging
 
 try:
     from src.nts.hardware.actuator import ProportionalActuator
@@ -24,37 +25,33 @@ class TestProportionalActuator(unittest.TestCase):
         self.assertEqual(actuator.normally_off, True)
         self.assertEqual(actuator.normally_on, False)
         self.assertEqual(actuator.value, 0)
-        self.assertEqual(actuator.verbose, False)
 
         actuator = ProportionalActuator(
-            label="MY ACTUATOR", normally_off=False, verbose=True
+            label="MY ACTUATOR", normally_off=False, log_level=logging.DEBUG
         )
         self.assertEqual(actuator.label, "MY ACTUATOR")
         self.assertEqual(actuator._is_normally_off(), False)
         self.assertEqual(actuator.normally_off, False)
         self.assertEqual(actuator.normally_on, True)
         self.assertEqual(actuator.value, 1)
-        self.assertEqual(actuator.verbose, True)
 
         actuator = ProportionalActuator(
-            label="MY ACTUATOR", normally_on=True, verbose=False
+            label="MY ACTUATOR", normally_on=True, log_level=logging.DEBUG
         )
         self.assertEqual(actuator.label, "MY ACTUATOR")
         self.assertEqual(actuator._is_normally_off(), False)
         self.assertEqual(actuator.normally_off, False)
         self.assertEqual(actuator.normally_on, True)
         self.assertEqual(actuator.value, 1)
-        self.assertEqual(actuator.verbose, False)
 
         actuator = ProportionalActuator(
-            label="MY ACTUATOR", normally_on=False, verbose=True
+            label="MY ACTUATOR", normally_on=False, log_level=logging.DEBUG
         )
         self.assertEqual(actuator.label, "MY ACTUATOR")
         self.assertEqual(actuator._is_normally_off(), True)
         self.assertEqual(actuator.normally_off, True)
         self.assertEqual(actuator.normally_on, False)
         self.assertEqual(actuator.value, 0)
-        self.assertEqual(actuator.verbose, True)
 
     def test_label(self):
         """Test label property"""
@@ -62,15 +59,6 @@ class TestProportionalActuator(unittest.TestCase):
         self.assertEqual(actuator.label, "MY ACTUATOR")
         actuator.label = "SOME Label"
         self.assertEqual(actuator.label, "SOME Label")
-
-    def test_verbose(self):
-        """Test verbose property"""
-        actuator = ProportionalActuator(label="MY ACTUATOR")
-        self.assertEqual(actuator.verbose, False)
-        actuator.verbose = True
-        self.assertEqual(actuator.verbose, True)
-        actuator.verbose = False
-        self.assertEqual(actuator.verbose, False)
 
     def test_value(self):
         """Test value property"""
@@ -98,7 +86,7 @@ class TestProportionalActuator(unittest.TestCase):
 
     def test_switching(self):
         """Test switching on and off"""
-        actuator = ProportionalActuator(verbose=True)
+        actuator = ProportionalActuator(log_level=logging.DEBUG)
         self.assertEqual(actuator.value, 0)
         self.assertEqual(actuator.current_state, actuator.off)
         actuator.switch_on()

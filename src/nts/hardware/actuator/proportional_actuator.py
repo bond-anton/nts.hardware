@@ -92,8 +92,7 @@ class PWMProportionalActuator(ProportionalActuator):
         elif f > self.__freq_range[1]:
             f = self.__freq_range[1]
         self._set_freq(f)
-        if self.verbose:
-            print(f"{self.label}: PWM frequency set to {f:2.2g} Hz")
+        self.logger.debug("%s: PWM frequency set to %2.2g Hz", self.label, f)
 
     def _set_freq(self, f: float) -> None:
         """set pwm freq method"""

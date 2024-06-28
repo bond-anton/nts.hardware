@@ -1,12 +1,15 @@
 """RS-485 module"""
 
 from typing import Union
+import logging
 import struct
 from pydantic import BaseModel
 from pymodbus.framer import ModbusAsciiFramer, ModbusRtuFramer
 from pymodbus.pdu import ModbusResponse
 from pymodbus.exceptions import ModbusException
 from pymodbus.client import AsyncModbusSerialClient
+
+from .. import get_logger
 
 
 class SerialConnectionConfig(BaseModel):
@@ -55,7 +58,7 @@ async def modbus_read_registers(
     start_register: int = 0,
     count: int = 1,
     slave: int = 1,
-    verbose: bool = False,
+    logger: Union[logging.Logger, None] = None,
 ) -> Union[ModbusResponse, None]:
     """Read registers data"""
     response: Union[ModbusResponse, None] = None
@@ -66,8 +69,8 @@ async def modbus_read_registers(
             start_register, count, slave=slave
         )
     except ModbusException as e:
-        if verbose:
-            print("Modbus Exception on read registers", e)
+        if logger:
+            logger.error("Modbus Exception on read registers %s", e)
     client.close()
     return response
 
@@ -77,7 +80,7 @@ async def modbus_write_register(
     register: int,
     value: int,
     slave: int = 1,
-    verbose: bool = False,
+    logger: Union[logging.Logger, None] = None,
 ) -> Union[ModbusResponse, None]:
     """Write data value to the register"""
     response: Union[ModbusResponse, None] = None
@@ -86,8 +89,8 @@ async def modbus_write_register(
     try:
         response = await client.write_register(register, value, slave=slave)
     except ModbusException as e:
-        if verbose:
-            print("Modbus Exception on write register", e)
+        if logger:
+            logger.error("Modbus Exception on write register %s", e)
     client.close()
     return response
 
@@ -100,7 +103,8 @@ class RS485Client:
         con_params: Union[SerialConnectionConfig, ModbusSerialConnectionConfig],
         address: int = 1,
         retries: int = 5,
-        verbose=False,
+        label: str = "RS485 Device",
+        **kwargs,
     ):
         self.con_params: Union[SerialConnectionConfig, ModbusSerialConnectionConfig] = (
             con_params
@@ -108,12 +112,14 @@ class RS485Client:
         self.address: int = address
         self.retries: int = retries
         self.response_delay: float = 5e-3
-        self.verbose: bool = verbose
+        self.label: str = label
+        self.logger = get_logger(
+            self.label, int(kwargs.pop("log_level")) if "log_level" in kwargs else None
+        )
 
     def _parse_response(self, response: bytes) -> dict:
         """Response parser"""
-        if self.verbose:
-            print(f"Parsing response: {response!r}")
+        self.logger.debug("Parsing response: %s", response)
         parsed: dict = {
             "crc": 0,
             "addr": -1,  # 0 is reserved for MODBUS as a broadcast address
@@ -124,8 +130,7 @@ class RS485Client:
             "data": tuple(),
         }
         if not response:
-            if self.verbose:
-                print("Empty response")
+            self.logger.debug("Empty response")
             return parsed
         parsed["crc"] = response[-1]
         parsed["addr"] = response[0]
@@ -134,11 +139,14 @@ class RS485Client:
             parsed["data_length"] = response[2]
             parsed["count"] = int(parsed["data_length"] / 2)
             parsed["data"] = struct.unpack(">" + "h" * parsed["count"], response[3:-1])
-            if self.verbose:
-                print(
-                    f"CMD: {parsed['cmd']}, ADDR: {parsed['addr']}, LEN: {parsed['count']}, "
-                    f"DATA: {parsed['data']}, CRC: {parsed['crc']}"
-                )
+            self.logger.debug(
+                "CMD: %s, ADDR: %s, LEN: %s, DATA: %d, CRC: %s",
+                parsed["cmd"],
+                parsed["addr"],
+                parsed["count"],
+                parsed["data"],
+                parsed["crc"],
+            )
         elif parsed["cmd"] == 6:
             parsed["data_length"] = 2
             parsed["count"] = 1
@@ -146,28 +154,30 @@ class RS485Client:
                 ">" + "h" * parsed["count"], response[2:4]
             )[0]
             parsed["data"] = struct.unpack(">" + "h" * parsed["count"], response[4:6])
-            if self.verbose:
-                print(
-                    f"CMD: {parsed['cmd']}, ADDR: {parsed['addr']}, REG: {parsed['register']}, "
-                    f"DATA: {parsed['data']}, CRC: {parsed['crc']}"
-                )
+            self.logger.debug(
+                "CMD: %s, ADDR: %s, REG: %s, DATA: %s, CRC: %s",
+                parsed["cmd"],
+                parsed["addr"],
+                parsed["register"],
+                parsed["data"],
+                parsed["crc"],
+            )
         elif parsed["cmd"] >= 0x80:
             # Error response
             parsed["data_length"] = 2
             parsed["count"] = 1
             parsed["data"] = struct.unpack(">h", response[2:4])
-            if self.verbose:
-                print(
-                    f"ERR: {parsed['cmd']:x}, CMD: {parsed['cmd'] - 0x80}"
-                    f"DATA: {parsed['data']}, CRC: {parsed['crc']}"
-                )
+            self.logger.debug(
+                "ERR: %x, CMD: %x, DATA: %s, CRC: %s",
+                parsed["cmd"],
+                parsed["cmd"] - 0x80,
+                parsed["data"],
+                parsed["crc"],
+            )
         return parsed
 
-    @staticmethod
-    def _get_payload(
-        response: Union[ModbusResponse, None], verbose: bool = True
-    ) -> bytes:
-        """Get the payload from the QTM response"""
+    def _get_payload(self, response: Union[ModbusResponse, None]) -> bytes:
+        """Get the payload from the response"""
         if response:
             if not response.isError():
                 # skip start and stop bytes and parse as a hex string
@@ -177,8 +187,7 @@ class RS485Client:
                     + b"\x00"
                 )
                 return payload
-            if verbose:
-                print(f"Modbus Response Error {response.function_code}")
+            self.logger.debug("Modbus Response Error %s", response.function_code)
         return b""
 
     async def read_registers(self, start_register: int = 0, count: int = 1) -> bytes:
@@ -191,9 +200,9 @@ class RS485Client:
             start_register=start_register,
             count=count,
             slave=self.address,
-            verbose=self.verbose,
+            logger=self.logger,
         )
-        return self._get_payload(response, verbose=self.verbose)
+        return self._get_payload(response)
 
     async def write_register(self, register: int, value: int) -> bytes:
         """
@@ -205,17 +214,16 @@ class RS485Client:
             register=register,
             value=value,
             slave=self.address,
-            verbose=self.verbose,
+            logger=self.logger,
         )
-        return self._get_payload(response, verbose=self.verbose)
+        return self._get_payload(response)
 
     async def read_parse_registers(
         self, start_register: int = 0, count: int = 1
     ) -> dict:
         """Read registers and return parsed response"""
         for iteration in range(self.retries):
-            if self.verbose:
-                print(f"Iteration {iteration + 1} of {self.retries}")
+            self.logger.debug("Iteration %d of %d", iteration + 1, self.retries)
             response = await self.read_registers(
                 start_register=start_register, count=count
             )
@@ -227,8 +235,7 @@ class RS485Client:
     async def write_parse_register(self, register: int, data: int = 0) -> dict:
         """Write the data value to the register and return parsed response"""
         for iteration in range(self.retries):
-            if self.verbose:
-                print(f"Iteration {iteration + 1} of {self.retries}")
+            self.logger.debug("Iteration %d of %d", iteration + 1, self.retries)
             response = await self.write_register(register=register, value=data)
             parsed = self._parse_response(response)
             if parsed["addr"] == self.address:
